@@ -3,28 +3,45 @@ BABYBEAR_PRIME = (1<<31) - (1<<27) + 1
 TWO_ADICITY = 27
 MULTIPLICATIVE_GENERATOR = 31
 
+
+class FieldElement:
+
+    def __init__(self, value: int):
+        self.value = value % BABYBEAR_PRIME
+
+    def __add__(self, other):
+        return FieldElement(self.value + other.value)
+
+    def __sub__(self, other):
+        return FieldElement(self.value - other.value)
+
+    def __mul__(self, other):
+        return FieldElement(self.value * other.value)
+
+    def __neg__(self):
+        return FieldElement(-self.value)
+
+    def __eq__(self, other):
+        if isinstance(other, FieldElement):
+            return self.value == other.value
+        return False
+
+    def __repr__(self):
+        return f"F({self.value})"
+
+    def __pow__(self, exp):
+        # per omega ** i nel test e due nel fold (inv usa Fermat)
+        return FieldElement(pow(self.value, exp, BABYBEAR_PRIME))
+
+    def inverse(self):
+        assert self.value != 0, "cannot invert zero"
+        return FieldElement(pow(self.value, BABYBEAR_PRIME - 2, BABYBEAR_PRIME))
+
+    def to_bytes(self) -> bytes:
+        return self.value.to_bytes(4, 'little')
+
 # precalcolo omega 
-TWO_ADIC_GENERATORS = [pow(MULTIPLICATIVE_GENERATOR, (BABYBEAR_PRIME - 1) >> k, BABYBEAR_PRIME) for k in range(TWO_ADICITY + 1)]
-
-def add(a: int, b: int) -> int:
-    return (a + b) % BABYBEAR_PRIME
-
-
-def sub(a: int, b: int) -> int:
-    return (a - b) % BABYBEAR_PRIME
-
-
-def mul(a: int, b: int) -> int:
-    return (a * b) % BABYBEAR_PRIME
-
-
-def neg(a: int) -> int:
-    return (BABYBEAR_PRIME - a) % BABYBEAR_PRIME
-
-
-def inv(a: int) -> int:
-    assert a != 0, "cannot invert zero"
-    return pow(a, BABYBEAR_PRIME - 2, BABYBEAR_PRIME)
+TWO_ADIC_GENERATORS = [ FieldElement(pow(MULTIPLICATIVE_GENERATOR, (BABYBEAR_PRIME - 1) >> k, BABYBEAR_PRIME)) for k in range(TWO_ADICITY + 1)]
 
 
 # restituisce le radici dell'unità ovvero omwga^0, omega^1 ... -> il sottogruppo di 2^k e` generato da two_adic_generator(k)

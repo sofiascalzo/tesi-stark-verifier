@@ -8,6 +8,7 @@ class MerkleTree:
     def __init__(self, leaves: List[bytes]):
         self.leaves = leaves
         self.tree=[leaves] + self.build_tree(leaves)
+        assert len(leaves) > 0 and (len(leaves) & (len(leaves) - 1)) == 0, f"leaves must be power of 2, got {len(leaves)}"
 
     def build_tree(self, level: List[bytes]) -> List[List[bytes]]:
         if len(level)==1:

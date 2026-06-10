@@ -3,7 +3,7 @@ from typing import List, Tuple
 from math import log2
 
 from polynomial import ntt, intt, evaluate, coset_lde
-from field import BABYBEAR_PRIME, add, sub, mul, neg, inv, two_adic_generator
+from field import BABYBEAR_PRIME, FieldElement, two_adic_generator
 from merkle_tree import MerkleTree, verify_proof
 from challenger import Challenger
 from fri_parameters import FriParameters
@@ -50,9 +50,9 @@ class RoundState:
 # - f_even = (f(x) + f(-x)) / 2
 # - f_odd  = (f(x) - f(-x)) / (2*x)
 # - f'(x^2) = f_even + alpha * f_odd
-def fold(codeword: List[int], alpha: int, offset:int, omega:int) -> List[int]:
+def fold(codeword: List[FieldElement], alpha: FieldElement, offset: FieldElement, omega: FieldElement) -> List[FieldElement]:
     n = len(codeword)
-    two_inv = inv(2)
+    two_inv = FieldElement(2).inverse()
     folded = []
 
     x_i = offset # w0
@@ -60,18 +60,20 @@ def fold(codeword: List[int], alpha: int, offset:int, omega:int) -> List[int]:
         lo = codeword[i]
         hi = codeword[i + n//2]
 
-        f_even = mul(add(lo,hi), two_inv)
-        f_odd = mul(sub(lo,hi),mul(two_inv, inv(x_i)))
-        folded.append(add(f_even, mul(alpha, f_odd)))
+        f_even = lo + hi
+        f_odd = lo - hi
+        folded.append(f_even * two_inv + alpha * f_odd * two_inv * x_i.inverse())
 
-        x_i = mul(x_i, omega)
+        x_i = x_i * omega
 
     return folded
 
 # crea la codeword e ogni round committa nel Merkle tree, riceve alpha dal Challenger, folda
-def commit_phase(poly_coeffs: List[int], params: FriParameters, challenger: Challenger) -> Tuple[List[RoundState], List[int], List[int]]:
+def commit_phase(poly_coeffs: List[FieldElement], params: FriParameters, challenger: Challenger) -> Tuple[List[RoundState], List[FieldElement], List[FieldElement]]:
 
     n=len(poly_coeffs)
+    assert n > 0 and (n & (n - 1)) == 0, f"poly length must be power of 2, got {n}"
+    
     extended_n = params.blowup()*n
     log_extended_n = int(log2(extended_n))
 
@@ -88,7 +90,7 @@ def commit_phase(poly_coeffs: List[int], params: FriParameters, challenger: Chal
     # (se final_poly_len = 1 piu folding ma invio un coeff, final_poly_len = 2 prova piu piccola ma piccola ma invio 2 coeff)
     while len(codeword) > params.final_poly_len:
         # hash di ogni elemento e estrare la root
-        leaves = [sha256(v.to_bytes(4, 'little')).digest() for v in codeword]
+        leaves = [sha256(v.to_bytes()).digest() for v in codeword]
         tree = MerkleTree(leaves)
         root =tree.root()
         round_states.append(RoundState(codeword,tree,omega,offset))
@@ -96,6 +98,8 @@ def commit_phase(poly_coeffs: List[int], params: FriParameters, challenger: Chal
         # registro la root nel transcript
         challenger.observe_bytes(root)
         # challenge
+
+        ## nooo sample di un extension field - polinomimo  riducibile sui reali fielr/src/extension/complex scelgo un polinomio riducibile, es x quadro + 1 ma con grado 4 cosi che elemnti di grado 3, interessante anche coome come posso arrivare a 4 con tower in cui ne combino 2 da 2, efficiente per gradu alti
         alpha = challenger.sample_field()
         alphas.append(alpha)
 
@@ -103,13 +107,13 @@ def commit_phase(poly_coeffs: List[int], params: FriParameters, challenger: Chal
         codeword = fold(codeword, alpha, offset,omega)
 
         # aggiorna dominio
-        offset =mul(offset, offset)
-        omega = mul(omega, omega)
+        offset =offset * offset
+        omega =omega * omega
 
     #mandato in chiaro perche` l'ultimo
     final_poly = codeword
 
-    final_poly_bytes = b''.join(v.to_bytes(4, 'little') for v in final_poly) 
+    final_poly_bytes = b''.join(v.to_bytes() for v in final_poly) 
     # registro anche il polinomio finale nel transcript
     challenger.observe_bytes(final_poly_bytes)
 
@@ -151,7 +155,7 @@ def query_phase(round_states: List[RoundState], params: FriParameters, challenge
     return query_proofs
 
 # P genera la prova completa
-def fri_prove(poly_coeffs: List[int], params: FriParameters, challenger: Challenger) -> FriProof:
+def fri_prove(poly_coeffs: List[FieldElement], params: FriParameters, challenger: Challenger) -> FriProof:
     round_states, final_poly, alphas = commit_phase(poly_coeffs, params, challenger)
     query_proofs = query_phase(round_states, params, challenger)
     roots=[s.tree.root() for s in round_states]
@@ -185,18 +189,27 @@ def fri_verify(proof: FriProof, params: FriParameters, challenger: Challenger, p
         alphas.append(alpha)
 
         current_size //= 2
-        current_omega = mul(current_omega, current_omega)
-        current_offset = mul(current_offset, current_offset)
+        current_omega = (current_omega * current_omega)
+        current_offset = (current_offset * current_offset)
+
+    # il primo assert controlla che il numero di round è giusto
+    # il secondo controlla che il prover ha mandato il numero corretto di coefficienti finali
+    # codeword iniziale / 2^num_round = final_poly_len
+    expected_final_len = extended_n >> len(proof.roots)
+    assert expected_final_len == params.final_poly_len, \
+        f"incoerenza: {len(proof.roots)} round su codeword {extended_n} danno {expected_final_len}, atteso {params.final_poly_len}"
+    assert len(proof.final_poly) == params.final_poly_len, \
+        f"final_poly ha {len(proof.final_poly)} elementi, atteso {params.final_poly_len}"
 
     # observe final poly
-    final_poly_bytes = b''.join(v.to_bytes(4, 'little') for v in proof.final_poly)
+    final_poly_bytes = b''.join(v.to_bytes() for v in proof.final_poly)
     challenger.observe_bytes(final_poly_bytes)
 
     # 2. ricostruisci indici di quey
     indices = challenger.sample_indices(params.num_queries, extended_n // 2)
 
     # 3. verifica ongi query (merkle path + colinearity check)
-    two_inv = inv(2)
+    two_inv = FieldElement(2).inverse()
     final_poly_len = len(proof.final_poly)
 
     for q_idx, qproof in enumerate(proof.query_proofs):
@@ -210,8 +223,8 @@ def fri_verify(proof: FriProof, params: FriParameters, challenger: Challenger, p
 
             # verifica Merkle path
 
-            lo_leaf = sha256(qround.lo_value.to_bytes(4, 'little')).digest()
-            hi_leaf = sha256(qround.hi_value.to_bytes(4, 'little')).digest()
+            lo_leaf = sha256(qround.lo_value.to_bytes()).digest()
+            hi_leaf = sha256(qround.hi_value.to_bytes()).digest()
 
             if not verify_proof(proof.roots[r], lo_idx, lo_leaf, qround.lo_path):
                 return False
@@ -219,14 +232,13 @@ def fri_verify(proof: FriProof, params: FriParameters, challenger: Challenger, p
                 return False
 
             # colinearity check
-            x_i = mul(offsets[r], pow(omegas[r], lo_idx, BABYBEAR_PRIME))
+            x_i = offsets[r] * (omegas[r] ** lo_idx)
 
-            f_even = mul(add(qround.lo_value, qround.hi_value), two_inv)
-            f_odd = mul(
-                sub(qround.lo_value, qround.hi_value),
-                mul(two_inv, inv(x_i))
-            )
-            expected = add(f_even, mul(alphas[r], f_odd))
+            f_even = (qround.lo_value + qround.hi_value) * two_inv
+            f_odd = (
+                qround.lo_value - qround.hi_value
+            ) * (two_inv * x_i.inverse())
+            expected = f_even + alphas[r] * f_odd
 
             # confronta con il round successivo o con il polinomio finale
             if r < len(qproof.rounds) - 1:
@@ -238,9 +250,6 @@ def fri_verify(proof: FriProof, params: FriParameters, challenger: Challenger, p
                 if expected != next_value:
                     return False
             else:
-                final_offset = current_offset
-                final_omega = current_omega
-                final_x = mul(final_offset, pow(final_omega, lo_idx, BABYBEAR_PRIME))
                 final_expected = proof.final_poly[lo_idx]
                 if expected != final_expected:
                     return False

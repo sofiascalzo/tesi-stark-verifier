@@ -1,6 +1,6 @@
 from hashlib import sha256
 from typing import List
-from field import BABYBEAR_PRIME
+from field import FieldElement, BABYBEAR_PRIME
 
 class Challenger:
 
@@ -20,7 +20,7 @@ class Challenger:
     # random alfa
     def sample(self) -> bytes:
         challenge = self.state
-        # ?? va bene cambiare stato cosi ovvero sample e observe fanno lo stesso cambio di stato? 
+        
         self.state = sha256(self.state).digest()
         return challenge
 
@@ -28,7 +28,8 @@ class Challenger:
         # ottiene random
         raw = self.sample()
         # lo converte in intero in Fp
-        return int.from_bytes(raw, 'big') % BABYBEAR_PRIME
+        return FieldElement(int.from_bytes(raw, 'big'))
+
 
     # domain_size è la dimensione del dominio della codeword (blowup * size_dominio_polinomio)
     def sample_indices(self, num_queries: int, domain_size: int) -> List[int]:
