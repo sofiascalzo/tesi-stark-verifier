@@ -10,12 +10,19 @@ class FieldElement:
         self.value = value % BABYBEAR_PRIME
 
     def __add__(self, other):
+        # cosi` prova il metodo reversed di ExtFieldElement
+        if not isinstance(other, FieldElement):
+            return NotImplemented
         return FieldElement(self.value + other.value)
 
     def __sub__(self, other):
+        if not isinstance(other, FieldElement):
+            return NotImplemented
         return FieldElement(self.value - other.value)
 
     def __mul__(self, other):
+        if not isinstance(other, FieldElement):
+            return NotImplemented
         return FieldElement(self.value * other.value)
 
     def __neg__(self):

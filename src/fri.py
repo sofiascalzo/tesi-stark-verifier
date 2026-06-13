@@ -99,8 +99,10 @@ def commit_phase(poly_coeffs: List[FieldElement], params: FriParameters, challen
         challenger.observe_bytes(root)
         # challenge
 
-        ## nooo sample di un extension field - polinomimo  riducibile sui reali fielr/src/extension/complex scelgo un polinomio riducibile, es x quadro + 1 ma con grado 4 cosi che elemnti di grado 3, interessante anche coome come posso arrivare a 4 con tower in cui ne combino 2 da 2, efficiente per gradu alti
-        alpha = challenger.sample_field()
+
+        #alpha deve essere campionato dal campo di estensione BabyBear^4
+        # per sicurezza completa (campo base ~2^31 insufficiente per tracce grandi)
+        alpha = challenger.sample_ext_field()
         alphas.append(alpha)
 
         #fold
@@ -185,7 +187,7 @@ def fri_verify(proof: FriProof, params: FriParameters, challenger: Challenger, p
         offsets.append(current_offset)
 
         challenger.observe_bytes(root)
-        alpha = challenger.sample_field()
+        alpha = challenger.sample_ext_field()
         alphas.append(alpha)
 
         current_size //= 2

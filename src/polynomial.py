@@ -33,7 +33,7 @@ def intt(evals: List[FieldElement], omega: FieldElement) -> List[FieldElement]:
     n=len(evals)
     omega_inv= omega.inverse()
     ntt_coeffs = ntt(evals, omega_inv)
-    n_inv = FieldElement(pow(n, BABYBEAR_PRIME - 2, BABYBEAR_PRIME))
+    n_inv = FieldElement(n).inverse()
     
     coeffs = []
     for c in ntt_coeffs:
