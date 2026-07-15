@@ -1,0 +1,102 @@
+\documentclass[12pt, a4paper, twoside]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{hyperref}
+\usepackage{amsmath}  
+\usepackage{amssymb}   
+\usepackage{graphicx}   % per il logo
+\usepackage[backend=bibtex, style=alphabetic]{biblatex}
+\addbibresource{bibliography.bib} 
+\usepackage[
+    top=3cm, bottom=3cm,
+    inner=3cm, outer=2.5cm 
+]{geometry}
+\usepackage{amsthm}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[chapter]
+\newtheorem{example}{Example}[chapter]
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{lemma}[theorem]{Lemma}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[chapter]
+
+
+\newcommand{\F}{\mathbb{F}}                % campo generico
+\newcommand{\Fp}{\mathbb{F}_p}             % campo primo
+\newcommand{\Fpk}{\mathbb{F}_{p^4}}        % estensione quartica
+\newcommand{\Z}{\mathbb{Z}}                % interi
+\newcommand{\N}{\mathbb{N}}                % naturali
+\newcommand{\RS}{\mathrm{RS}}              % Reed-Solomon
+\newcommand{\Commit}{\mathsf{Commit}}
+\newcommand{\Open}{\mathsf{Open}}
+\newcommand{\Verify}{\mathsf{Verify}}
+\newcommand{\Setup}{\mathsf{Setup}}
+\newcommand{\Prover}{\mathcal{P}}
+\newcommand{\Verifier}{\mathcal{V}}
+\newcommand{\Extractor}{\mathcal{E}}
+\newcommand{\negl}{\mathsf{negl}}
+
+
+
+\begin{document}
+
+
+
+\begin{titlepage}
+    \centering
+    \vspace*{0.5cm}
+
+    
+    \includegraphics[width=3.5cm]{logo-pisa.png} 
+    \vspace{1cm} 
+
+    {\Large University of Pisa \par}
+    \vspace{0.5cm}
+    {\large Department of Computer Science \par}
+    {\large Bachelor's Degree \par}
+    \vspace{2cm}
+
+    {\Large Bachelor's thesis \par}
+    \vspace{2cm}
+
+    {\Huge\bfseries **here title**\\[0.3cm]
+    **here title** \par}
+    \vspace{3cm}
+
+    \begin{minipage}[t]{0.48\textwidth}
+        \raggedright
+        Supervisors:\\[0.4cm]
+        \textbf{Prof. Anna Bernasconi}\\
+        University of Pisa\\[0.5cm]
+        \textbf{Dott. Giorgio dell'Immagine}\\
+        **non lo so**
+    \end{minipage}
+    \hfill
+    \begin{minipage}[t]{0.42\textwidth}
+        \raggedleft
+        Candidate:\\[0.4cm]
+        \textbf{Sofia Scalzo}\\
+        University of Pisa
+    \end{minipage}
+    
+    \vfill
+    {\large Academic year 2025/2026 \par}
+\end{titlepage}
+
+\chapter*{Abstract}  
+\addcontentsline{toc}{chapter}{Abstract}  
+
+\tableofcontents 
+\newpage
+
+\input{chapters/1_introduction}
+\input{chapters/2_background}
+\input{chapters/3_fri}
+
+
+\printbibliography[title={bibliography}]
+\addcontentsline{toc}{chapter}{Bibliography}
+
+\end{document}

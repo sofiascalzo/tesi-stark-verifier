@@ -1,0 +1,429 @@
+\chapter{Mathematical Background}
+\label{ch:background}
+
+This chapter introduces the notation and mathematical foundations
+used throughout the thesis.
+
+
+% ==================================================================
+\section{Finite Fields}
+\label{sec:finite_fields}
+% ==================================================================
+
+\begin{definition}[Prime Field]
+\label{def:prime_field}
+Let $p$ be a prime number. The \emph{prime field} $\Fp$ is the set
+$\{0, 1, \ldots, p-1\}$ equipped with addition and multiplication
+modulo $p$.
+\end{definition}
+
+The multiplicative group $\Fp^* = \Fp \setminus \{0\}$ is cyclic of
+order $p - 1$. An element $g \in \Fp^*$ is called a \emph{generator}
+if $\{g^0, g^1, \ldots, g^{p-2}\} = \Fp^*$. For any $a \in \Fp^*$,
+the multiplicative inverse can be computed via Fermat's little theorem:
+%
+\begin{equation}
+\label{eq:fermat}
+a^{-1} \equiv a^{p-2} \pmod{p}.
+\end{equation}
+
+
+\subsection{The BabyBear Field}
+\label{subsec:babybear}
+
+The implementation described in this thesis operates over the BabyBear
+prime field, defined by
+%
+\begin{equation}
+\label{eq:babybear_prime}
+p = 2^{31} - 2^{27} + 1 = 2\,013\,265\,921.
+\end{equation}
+
+% p < 2^31 so elements fit in 32 bits; products fit in 64 bits.
+Since $p < 2^{31}$, every field element fits in a 32-bit unsigned
+integer, and the product of two elements fits in a 64-bit integer.
+
+% p - 1 = 2^{27} * 15, giving a multiplicative subgroup of order 2^{27}.
+The multiplicative group $\Fp^*$ has order $p - 1 = 2^{27} \cdot 15$.
+The factor $2^{27}$, the \emph{two-adicity} of the field, means that
+$\Fp^*$ contains a cyclic subgroup of order $2^{27}$, which is
+essential for the Number Theoretic Transform.
+
+
+\subsection{Roots of Unity}
+\label{subsec:roots_of_unity}
+
+\begin{definition}[Primitive Root of Unity]
+\label{def:root_of_unity}
+An element $\omega \in \Fp$ is a \emph{primitive $N$-th root of unity}
+if $\omega^N = 1$ and $\omega^k \neq 1$ for all $0 < k < N$.
+\end{definition}
+
+Given a primitive $N$-th root of unity $\omega$, the set
+$H = \{1, \omega, \omega^2, \ldots, \omega^{N-1}\}$
+is a multiplicative subgroup of $\Fp^*$ of order $N$. Because BabyBear
+has two-adicity $27$, subgroups of order $2^k$ for any $k \leq 27$
+exist and are generated from a fixed multiplicative generator $g$ by
+taking $g^{(p-1)/2^k}$.
+
+% ethSTARK Section 3 (Definition 1, AIR): "the following definition
+% restricts our attention only to finite fields F that contain a large
+% multiplicative subgroup of size 2^h".
+These subgroups serve as evaluation domains for the polynomials in the
+STARK protocol: the execution trace is evaluated on a subgroup $H$ of
+order $2^h$, and FRI operates on a larger domain.
+
+
+\subsection{Field Extensions}
+\label{subsec:field_ext}
+
+\begin{definition}[Field Extension]
+\label{def:field_ext}
+A \emph{field extension} $\mathbb{F}_{p^k}$ of degree $k$ over $\Fp$
+is the quotient ring $\Fp[X]/(f(X))$, where $f(X) \in \Fp[X]$ is an
+irreducible polynomial of degree $k$. Elements are polynomials of
+degree less than $k$ with coefficients in $\Fp$.
+\end{definition}
+
+In this work we use the \emph{quartic extension} $\Fpk$, constructed
+via the irreducible polynomial $X^4 - 11$. The constant $11$ is chosen
+because it is not a fourth power in $\Fp$, which guarantees that
+$X^4 - 11$ is irreducible. An element of $\Fpk$ is a tuple
+$(c_0, c_1, c_2, c_3) \in \Fp^4$ representing
+$c_0 + c_1 X + c_2 X^2 + c_3 X^3$, with the reduction rule $X^4 = 11$.
+
+
+% ==================================================================
+\section{Polynomials}
+\label{sec:polynomials}
+% ==================================================================
+
+A univariate polynomial over $\Fp$ of degree at most $d$ is
+$f(X) = \sum_{i=0}^{d} c_i X^i$ with $c_i \in \Fp$. It can be
+represented by its \emph{coefficient vector} $(c_0, \ldots, c_d)$ or
+by its \emph{evaluation vector} on a domain $D$. Converting between
+the two representations, and evaluating a polynomial at a point, are
+the fundamental operations of the prover.
+
+
+\subsection{The Number Theoretic Transform}
+\label{subsec:ntt}
+
+The conversion between coefficient and evaluation representations is
+performed using the Number Theoretic Transform (NTT), the finite-field
+analogue of the Fast Fourier Transform. When the evaluation domain is
+a multiplicative subgroup
+$D = \{1, \omega, \ldots, \omega^{N-1}\}$ with $N$ a power of~$2$, the
+NTT computes all evaluations $f(\omega^i)$ in $O(N \log N)$ operations.
+The algorithm exploits the decomposition
+%
+\[
+f(X) = f_{\mathrm{even}}(X^2) + X \cdot f_{\mathrm{odd}}(X^2),
+\]
+%
+recursing on the even- and odd-indexed coefficients over the squared
+subgroup, which has half the size. The inverse transform runs the same
+routine with $\omega^{-1}$ and divides by $N$.
+
+
+\subsection{Low-Degree Extension}
+\label{subsec:lde}
+
+The \emph{low-degree extension} (LDE) of a polynomial is its
+evaluation on a domain larger than its coefficient count. Given the
+$n$ coefficients of $f$, the LDE with blowup factor $b$ evaluates $f$
+on a coset of a subgroup of size $b \cdot n$. The resulting evaluation
+vector is the Reed-Solomon codeword that the prover commits to. In our
+implementation the low-degree extension is computed by padding the
+coefficients with zeros, applying a coset shift, and running the NTT
+on the enlarged domain.
+$D \supseteq H$~\cite[Section~3.4]{ethSTARK}
+
+\subsection{Vanishing Polynomials}
+\label{subsec:vanishing}
+
+% ethSTARK, before Definition 1 (AIR): "Given a set S in F, we define
+% the vanishing polynomial of S to be Z_S(X) := prod_{s in S}(X - s)".
+\begin{definition}[Vanishing Polynomial {\cite[Section~5.1]{ethSTARK}}]
+\label{def:vanishing}
+Given a set $S \subseteq \F$, the \emph{vanishing polynomial} of $S$
+is $Z_S(X) := \prod_{s \in S}(X - s)$. When $S$ is a multiplicative
+subgroup $H = \{1, \omega, \ldots, \omega^{N-1}\}$, this simplifies
+to $Z_H(X) = X^N - 1$.
+\end{definition}
+
+$Z_H$ vanishes on every element of $H$ and nowhere else. If a
+constraint polynomial $c(X)$ must be zero on $H$, then $Z_H(X)$
+divides $c(X)$, and the quotient $q(X) = c(X)/Z_H(X)$ is a
+polynomial. The verifier checks that $q$ has low degree, which
+certifies that $c$ vanishes on $H$~\cite{ethSTARK}. This mechanism is
+the basis of the STARK construction presented in
+Chapter~\ref{ch:stark}.
+
+
+% ==================================================================
+\section{Reed-Solomon Codes}
+\label{sec:reed_solomon}
+% ==================================================================
+
+% BS+18, Section 2.1: "For S in F and rate parameter rho in (0,1), the
+% Reed-Solomon code RS[F, S, rho] is the family of functions f : S -> F
+% that are evaluations of polynomials of degree < rho|S|."
+\begin{definition}[Reed-Solomon Code {\cite[Section~2.1]{BBHR18}}]
+\label{def:rs_code}
+For a finite field $\F$, a subset $S \subseteq \F$, and a rate
+parameter $\rho \in (0,1)$, the \emph{Reed-Solomon code}
+$\RS[\F, S, \rho]$ is the set of functions $f : S \to \F$ that are
+evaluations of polynomials of degree less than $\rho|S|$:
+%
+\[
+\RS[\F, S, \rho] = \{(f(x))_{x \in S} : f \in \F[X],\;
+  \deg(f) < \rho|S|\}.
+\]
+\end{definition}
+
+Each codeword is the evaluation of a polynomial of degree less than
+$\rho|S|$ on all points of $S$. The code has minimum distance
+$|S| - \rho|S| + 1$, so two distinct codewords differ on a large
+fraction of positions.
+
+The parameter $\rho$ is the \emph{rate}, and $1/\rho$ is the
+\emph{blowup factor}. In our implementation the blowup factor is~$2$
+($\rho = 1/2$): the codeword produced by the low-degree extension is
+twice the length of the coefficient vector.
+
+
+\subsection{Relative Hamming Distance}
+\label{subsec:hamming}
+
+% BS+18 Section 2.1: "the case that f is 0.1-far from (all members of)
+% RS[F, S, rho] in relative Hamming distance."
+\begin{definition}[Relative Hamming Distance]
+\label{def:hamming}
+The \emph{relative Hamming distance} between two vectors
+$u, v \in \F^n$ is
+%
+\[
+\Delta(u, v) = \frac{|\{i : u_i \neq v_i\}|}{n}.
+\]
+%
+The \emph{distance} of a vector $u$ from a code $C$ is
+$\Delta(u, C) = \min_{v \in C} \Delta(u, v)$. A vector $u$ is
+$\delta$-\emph{close} to $C$ if $\Delta(u, C) \leq \delta$, and
+$\delta$-\emph{far} if $\Delta(u, C) > \delta$.
+\end{definition}
+
+The FRI protocol tests proximity to a Reed-Solomon codeword. As stated
+in~\cite[Section~2.1]{BBHR18}, the verifier's task is to distinguish
+between the case that $f \in \RS[\F, S, \rho]$ and the case that $f$
+is far from $\RS[\F, S, \rho]$ in relative Hamming distance.
+
+
+% ==================================================================
+\section{Cryptographic Hash Functions}
+\label{sec:hash_functions}
+% ==================================================================
+
+\begin{definition}[Collision-Resistant Hash Function]
+\label{def:hash}
+A \emph{collision-resistant hash function} is a function
+$H : \{0,1\}^* \to \{0,1\}^\lambda$ such that no efficient algorithm
+can find distinct inputs $x \neq x'$ with $H(x) = H(x')$, except
+with negligible probability.
+\end{definition}
+
+Hash functions serve two roles in STARK systems: constructing Merkle
+trees for committing to polynomial evaluations, and deriving the
+verifier's challenges via the Fiat-Shamir heuristic. Our
+implementation uses two different hash functions for these two roles:
+SHA-256 for the Merkle commitments and Keccak-$f$[1600] for the
+challenger.
+
+% CO25 proves DSFS (Duplex Sponge Fiat-Shamir) preserves soundness,
+% knowledge-soundness and zero-knowledge.
+The distinction matters for the Fiat-Shamir transformation. Chiesa and
+Orr\`{u}~\cite{CO25} prove that a \emph{duplex sponge} construction
+(such as Keccak/SHA-3) is suitable for Fiat-Shamir, while
+Merkle-Damg\r{a}rd constructions (such as SHA-256) lack a comparable
+security proof in this setting. For this reason we use a Keccak-based
+sponge for the challenger, while retaining SHA-256 for the Merkle
+trees, where only collision resistance is required.
+
+
+% ==================================================================
+\section{Merkle Trees}
+\label{sec:merkle_trees}
+% ==================================================================
+
+\begin{definition}[Merkle Tree]
+\label{def:merkle}
+A \emph{Merkle tree} over a sequence $(v_0, v_1, \ldots, v_{N-1})$
+with $N = 2^k$ is a binary tree where each leaf stores the hash of one
+element, $\ell_i = H(v_i)$; each internal node stores the hash of the
+concatenation of its two children,
+$H(n_{\mathrm{left}} \| n_{\mathrm{right}})$; and the root $r$ is a
+single digest that binds the entire sequence.
+\end{definition}
+
+To prove that $v_i$ is the value at position $i$, the prover provides
+an \emph{authentication path}: the $\log_2(N)$ sibling hashes along
+the path from the leaf to the root. The verifier recomputes the root
+and accepts if it matches $r$. Verification requires $O(\log N)$ hash
+evaluations.
+
+In the BCS transformation~\cite{BCS16}, Merkle trees commit to the
+oracle messages of the IOP: the prover evaluates a polynomial on the
+FRI domain, builds a Merkle tree over the evaluations, and sends the
+root to the verifier.
+
+
+% ==================================================================
+\section{Proof Systems}
+\label{sec:proofs}
+% ==================================================================
+
+We now establish the formal framework of proof systems, following
+Thaler~\cite{Thaler22}.
+
+
+\subsection{Interactive Proofs}
+\label{subsec:interactive_proofs}
+
+% Thaler, Definition 3.1.
+\begin{definition}[Interactive Proof {\cite[Definition~3.1]{Thaler22}}]
+\label{def:interactive_proof}
+An \emph{interactive proof system} for a function $f$ is a pair
+$(\Prover, \Verifier)$ where $\Prover$ is a computationally unbounded
+prover and $\Verifier$ is a probabilistic polynomial-time verifier.
+The protocol proceeds in rounds, and must satisfy:
+\begin{itemize}
+  \item \textbf{Completeness.} For every input $x$,
+    $\Pr[\Verifier \text{ accepts}] \geq 1 - \delta_c$.
+  \item \textbf{Soundness.} For every input $x$ and every cheating
+    prover $\Prover^*$ that sends a value $y \neq f(x)$,
+    $\Pr[\Verifier \text{ accepts}] \leq \delta_s$.
+\end{itemize}
+\end{definition}
+
+
+\subsection{Arguments}
+\label{subsec:arguments}
+
+% Thaler, Definition 3.2.
+\begin{definition}[Argument System {\cite[Definition~3.2]{Thaler22}}]
+\label{def:argument}
+An \emph{argument system} for a function $f$ is an interactive proof
+for $f$ in which the soundness condition is only required to hold
+against prover strategies that run in polynomial time.
+\end{definition}
+
+STARKs are \emph{arguments}, not \emph{proofs} in the formal sense:
+their soundness relies on the collision resistance of the hash
+function, which a computationally unbounded prover could break.
+
+
+\subsection{The Fiat-Shamir Transformation}
+\label{subsec:fiat_shamir}
+
+A \emph{non-interactive} proof consists of a single message from the
+prover to the verifier. The Fiat-Shamir transformation removes
+interaction from a public-coin protocol by replacing the verifier's
+random challenges with the output of a hash function applied to the
+transcript so far. Under the random oracle model, this preserves
+soundness. Chiesa and Orr\`{u}~\cite{CO25} give a formal treatment
+using a duplex sponge, which resolves the ambiguity between writing to
+and reading from the transcript by using the sponge's native
+\emph{absorb} and \emph{squeeze} operations. Our challenger implements
+this construction over Keccak-$f$[1600].
+
+
+% ==================================================================
+\section{Interactive Oracle Proofs}
+\label{sec:iop}
+% ==================================================================
+
+% BCS16, Definition 2.2.
+\begin{definition}[Interactive Oracle Proof
+  {\cite[Definition~2.2]{BCS16}}]
+\label{def:iop}
+An \emph{Interactive Oracle Proof} (IOP) for a language $\mathcal{L}$
+is an interactive protocol between a prover $\Prover$ and a verifier
+$\Verifier$ that proceeds in rounds. In each round:
+\begin{enumerate}
+  \item the prover sends an \emph{oracle message} $\pi_i$ (a function
+    that the verifier may query at chosen positions);
+  \item the verifier sends a random challenge $r_i$.
+\end{enumerate}
+After $k$ rounds, the verifier makes a bounded number of queries to
+$\pi_1, \ldots, \pi_k$ and outputs $\mathsf{accept}$ or
+$\mathsf{reject}$.
+\end{definition}
+
+The key difference from a standard interactive proof is that the
+verifier has \emph{oracle access} to the prover's messages: it reads
+only a small number of positions rather than the full message. This
+is what enables succinct verification.
+
+An IOP of \emph{proximity} (IOPP) is an IOP in which the verifier
+tests whether the prover's initial oracle is close to a codeword of
+a specified code, rather than testing membership in a 
+language~\cite{BBHR18}.
+
+
+% ==================================================================
+\section{The BCS Transformation}
+\label{sec:bcs}
+% ==================================================================
+
+The BCS transformation~\cite{CO25} compiles a public-coin IOP into a
+non-interactive argument in the random oracle model:
+
+\begin{enumerate}
+  \item \textbf{Commitment.} Each oracle message is committed using a
+    Merkle tree; the prover sends the root.
+  \item \textbf{Challenge derivation.} Each challenge is derived from
+    the transcript via Fiat-Shamir.
+  \item \textbf{Query answering.} The prover opens the requested
+    positions together with their Merkle authentication paths.
+  \item \textbf{Verification.} The verifier checks the paths,
+    recomputes the challenges, and runs the IOP decision procedure.
+\end{enumerate}
+
+This is precisely the structure of our FRI commit phase: each folding
+layer is committed with a Merkle tree, its root is absorbed into the
+challenger, and the next folding challenge is squeezed from it. The
+query and verification steps are performed when the verifier opens the
+Merkle paths and checks folding consistency.
+
+
+% ==================================================================
+\section{Polynomial Commitment Schemes}
+\label{sec:pcs}
+% ==================================================================
+
+
+\begin{definition}[Polynomial Commitment Scheme]
+\label{def:pcs}
+A \emph{Polynomial Commitment Scheme} (PCS) consists of four
+algorithms:
+\begin{itemize}
+  \item $\Setup(\lambda, d) \to \mathsf{pp}$: generates public
+    parameters for polynomials of degree at most $d$.
+  \item $\Commit(\mathsf{pp}, f) \to C$: produces a commitment $C$
+    to the polynomial $f$.
+  \item $\Open(\mathsf{pp}, f, z) \to (v, \pi)$: produces a proof
+    $\pi$ that $f(z) = v$.
+  \item $\Verify(\mathsf{pp}, C, z, v, \pi) \to \{0,1\}$: checks
+    the evaluation proof.
+\end{itemize}
+The scheme must satisfy correctness and binding.
+
+
+The STARK system implemented in this thesis uses a \emph{FRI-based
+PCS}~\cite{BBHR18}: a polynomial is committed via a Merkle tree over
+its low-degree extension, and evaluation proofs are constructed
+through the FRI low-degree testing protocol. This approach requires no
+trusted setup (transparent) and relies only on hash functions
+(post-quantum secure). The FRI protocol is described in detail in
+Chapter~\ref{ch:fri}.
+\end{definition}

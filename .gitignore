@@ -1,0 +1,22 @@
+# LaTeX build files
+__pycache__/
+*.pyc
+
+src/*.txt
+src/*.md
+src/*html
+
+tesi/*.aux
+tesi/*.log
+tesi/*.out
+tesi/*.fls
+tesi/*.bbl
+tesi/*.toc
+tesi/*.blg
+*.fdb_latexmk
+*.synctex.gz
+*.run.xml
+*-blx.bib
+
+tesi/chapter/domande.txt
+README.md
