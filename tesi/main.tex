@@ -12,12 +12,14 @@
     top=3cm, bottom=3cm,
     inner=3cm, outer=2.5cm 
 ]{geometry}
+\usepackage[nameinlink]{cleveref}
 \usepackage{amsthm}
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[chapter]
 \newtheorem{example}{Example}[chapter]
 \theoremstyle{plain}
 \newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{proposition}[theorem]{Proposition}
 \newtheorem{lemma}[theorem]{Lemma}
 \theoremstyle{remark}
 \newtheorem{remark}{Remark}[chapter]
@@ -88,15 +90,14 @@
 \chapter*{Abstract}  
 \addcontentsline{toc}{chapter}{Abstract}  
 
-\tableofcontents 
+\tableofcontents
 \newpage
 
 \input{chapters/1_introduction}
 \input{chapters/2_background}
 \input{chapters/3_fri}
 
-
-\printbibliography[title={bibliography}]
+\printbibliography[title={Bibliography}]
 \addcontentsline{toc}{chapter}{Bibliography}
 
 \end{document}

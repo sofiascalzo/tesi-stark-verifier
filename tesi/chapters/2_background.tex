@@ -136,8 +136,7 @@ on a coset of a subgroup of size $b \cdot n$. The resulting evaluation
 vector is the Reed-Solomon codeword that the prover commits to. In our
 implementation the low-degree extension is computed by padding the
 coefficients with zeros, applying a coset shift, and running the NTT
-on the enlarged domain.
-$D \supseteq H$~\cite[Section~3.4]{ethSTARK}
+on the enlarged domain~\cite[Section~3.4]{ethSTARK}.
 
 \subsection{Vanishing Polynomials}
 \label{subsec:vanishing}
@@ -160,6 +159,61 @@ certifies that $c$ vanishes on $H$~\cite{ethSTARK}. This mechanism is
 the basis of the STARK construction presented in
 Chapter~\ref{ch:stark}.
 
+% ==================================================================
+\section{Coding Theory}
+\label{sec:coding_theory}
+% ==================================================================
+
+Reed-Solomon codes, and distance from them, are the objects the FRI
+protocol operates on. We recall the general definitions that the
+soundness analysis of the FRI protocol relies on.
+
+\begin{definition}[Error-Correcting Code {\cite[Definition~3.1]{WHIR24}}]
+\label{def:code}
+An \emph{error-correcting code} of length $n$ over an alphabet
+$\Sigma$ is a subset $C \subseteq \Sigma^n$. The code is a
+\emph{linear code} if $\Sigma = \F$ is a field and $C$ is a linear
+subspace of $\F^n$. The \emph{rate} of a linear code is
+$\rho := \dim(C)/n$.
+\end{definition}
+
+The elements of $C$ are its \emph{codewords}, and the \emph{minimum
+distance} of a code is the smallest relative Hamming distance
+(\cref{def:hamming}) between two distinct codewords. When a word lies
+far from every codeword, several codewords may still lie within a given
+distance of it; the following notion quantifies this.
+
+\begin{definition}[List Decoding {\cite[Definition~3.2]{WHIR24}}]
+\label{def:list_decoding}
+For a code $C \subseteq \Sigma^n$, a word $f \in \Sigma^n$, and a
+proximity parameter $\delta \in [0,1]$, the \emph{list} of $C$ at $f$
+within radius $\delta$ is
+%
+\[
+\Lambda(C, f, \delta) := \{u \in C : \Delta(f, u) \leq \delta\}.
+\]
+%
+The code is \emph{$(\delta, \ell)$-list decodable} if
+$|\Lambda(C, f, \delta)| \leq \ell$ for every $f \in \Sigma^n$. A
+radius $\delta$ is \emph{within unique decoding} if the code is
+$(\delta, 1)$-list decodable.
+\end{definition}
+
+For a code of minimum distance $\delta_C$, any radius
+$\delta \leq \delta_C/2$ is within unique decoding. Beyond it, the list
+size for Reed-Solomon codes is controlled by the Johnson bound.
+
+\begin{theorem}[Johnson Bound {\cite[Theorem~4.3]{WHIR24}}]
+\label{thm:johnson}
+The Reed-Solomon code of rate $\rho$ is
+$\bigl(1 - \sqrt{\rho} - \eta,\; \tfrac{1}{2\eta\sqrt{\rho}}\bigr)$-list
+decodable for every $\eta \in (0, 1 - \sqrt{\rho})$.
+\end{theorem}
+
+The two thresholds --- the \emph{unique decoding} radius
+$\tfrac{1-\rho}{2}$ and the \emph{Johnson} radius $1 - \sqrt{\rho}$ ---
+are exactly where the soundness guarantees of FRI change form
+(\cref{ch:fri}).
 
 % ==================================================================
 \section{Reed-Solomon Codes}
@@ -306,21 +360,35 @@ The protocol proceeds in rounds, and must satisfy:
 \end{definition}
 
 
-\subsection{Arguments}
+\subsection{Interactive Arguments}
 \label{subsec:arguments}
 
-% Thaler, Definition 3.2.
-\begin{definition}[Argument System {\cite[Definition~3.2]{Thaler22}}]
+Relaxing the soundness of an interactive proof
+(\cref{def:interactive_proof}) to hold only against efficient provers
+yields a weaker but more flexible notion.
+
+\begin{definition}[Interactive Argument {\cite[Section~3.2]{Thaler22}}]
 \label{def:argument}
-An \emph{argument system} for a function $f$ is an interactive proof
-for $f$ in which the soundness condition is only required to hold
-against prover strategies that run in polynomial time.
+An \emph{interactive argument} for a language $\mathcal{L}$ is an
+interactive proof in which the soundness condition is only required to
+hold against prover strategies that run in probabilistic polynomial
+time.
 \end{definition}
 
-STARKs are \emph{arguments}, not \emph{proofs} in the formal sense:
-their soundness relies on the collision resistance of the hash
-function, which a computationally unbounded prover could break.
+Both models share the same structure. In a \emph{public-coin} protocol,
+every verifier message is a uniformly random challenge, independent of
+the prover's messages, and the verifier's decision is a deterministic
+function of the \emph{transcript} --- the ordered sequence of messages
+and challenges. These are exactly the protocols to which the
+Fiat-Shamir transformation (\cref{subsec:fiat_shamir}) applies. An
+\emph{argument of knowledge} further requires an efficient extractor
+$\Extractor$ that recovers a valid witness from any convincing prover.
 
+STARKs are \emph{arguments}, not \emph{proofs} in the formal sense:
+their soundness relies on the collision resistance of a hash function,
+which a computationally unbounded prover could break. The interactive
+oracle proofs of \cref{sec:iop} specialise this model by providing the
+prover's messages as oracles.
 
 \subsection{The Fiat-Shamir Transformation}
 \label{subsec:fiat_shamir}
@@ -366,7 +434,7 @@ is what enables succinct verification.
 
 An IOP of \emph{proximity} (IOPP) is an IOP in which the verifier
 tests whether the prover's initial oracle is close to a codeword of
-a specified code, rather than testing membership in a 
+a specified code, rather than testing membership in a
 language~\cite{BBHR18}.
 
 
@@ -375,7 +443,7 @@ language~\cite{BBHR18}.
 \label{sec:bcs}
 % ==================================================================
 
-The BCS transformation~\cite{CO25} compiles a public-coin IOP into a
+The BCS transformation~\cite{BCS16} compiles a public-coin IOP into a
 non-interactive argument in the random oracle model:
 
 \begin{enumerate}
@@ -417,7 +485,7 @@ algorithms:
     the evaluation proof.
 \end{itemize}
 The scheme must satisfy correctness and binding.
-
+\end{definition}
 
 The STARK system implemented in this thesis uses a \emph{FRI-based
 PCS}~\cite{BBHR18}: a polynomial is committed via a Merkle tree over
@@ -426,4 +494,3 @@ through the FRI low-degree testing protocol. This approach requires no
 trusted setup (transparent) and relies only on hash functions
 (post-quantum secure). The FRI protocol is described in detail in
 Chapter~\ref{ch:fri}.
-\end{definition}
