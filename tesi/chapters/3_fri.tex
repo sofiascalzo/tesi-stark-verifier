@@ -67,3 +67,159 @@ analysis of the FRI protocol.
  
 
  
+% ==================================================================
+\section{The Evaluation Domain}
+\label{sec:fri_domain}
+% ==================================================================
+ 
+The folding step of FRI relies on specific algebraic structure in the
+evaluation domain. We state the requirements first, then give the
+co(\cref{sec:fri_folding})nstruction used in our implementation.
+ 
+ 
+\subsection{Requirements}
+\label{subsec:domain_requirements}
+ 
+The reduction from a polynomial $f$ to a polynomial of half the degree
+is carried out by pairing the evaluations of $f$ at $x$ and at $-x$. %(\cref{sec:fri_folding})
+For this to be possible at every position,
+the domain must be closed under negation. Moreover, the folded
+polynomial is committed not on $D$ but on the squared domain
+$D^{(2)} := \{x^2 : x \in D\}$, and since the folding step is applied
+iteratively, $D^{(2)}$ must be closed under negation as well, and so
+on for every subsequent layer~\cite[Section~3.9.1]{ethSTARK}.
+ 
+We therefore require a chain of domains
+%
+\[
+D = D_0, \quad D_{i+1} = D_i^{(2)}, \quad i = 0, 1, \ldots
+\]
+%
+such that every $D_i$ is closed under negation and
+$|D_{i+1}| = |D_i|/2$. These requirements are met by taking $D$ to be
+a coset of a multiplicative subgroup of order
+$2^k$~\cite[Section~3.9.1]{ethSTARK}.
+ 
+A coset is used rather than the subgroup itself so that the evaluation
+domain is disjoint from the trace domain on which the polynomial being
+committed is defined~\cite[Section~3.4]{ethSTARK}. Disjointness is
+required in the full STARK protocol, where constraint polynomials are
+expressed as rational functions whose denominators vanish on the trace
+domain; evaluating them on a disjoint domain keeps those denominators
+nonzero.
+ 
+ 
+\subsection{Construction}
+\label{subsec:domain_construction}
+
+We build the domain from the roots of unity of \cref{subsec:roots_of_unity}.
+Let $n$ be the number of coefficients of the polynomial to be committed,
+$b$ the blowup factor, and $N = b \cdot n = 2^k$ the size of the
+evaluation domain. Two elements are fixed:
+%
+\begin{equation}
+\label{eq:domain_generators}
+\omega = \gamma^{(p-1)/2^{k}}, \qquad
+g = \gamma^{(p-1)/2^{k+1}},
+\end{equation}
+%
+where $\gamma$ is a fixed multiplicative generator of $\Fp^*$. Here
+$\omega$ is a primitive $2^k$-th root of unity: its powers
+$\langle\omega\rangle = \{1, \omega, \ldots, \omega^{N-1}\}$ form a
+cyclic group of $N$ equally spaced points. The element $g$ is a
+primitive $2^{k+1}$-th root of unity, one ``half-step'' finer, and it
+plays the role of an \emph{offset} that rotates the whole group. The
+two are linked by the invariant
+%
+\begin{equation}
+\label{eq:g_squared}
+g^2 = \omega,
+\end{equation}
+%
+which, as we show below, is exactly what makes the domain reproduce
+itself under squaring.
+
+The evaluation domain is the coset (\cref{def:coset})
+%
+\begin{equation}
+\label{eq:domain}
+D = g \cdot \langle \omega \rangle
+  = \{\, g\omega^j : j = 0, \ldots, N-1 \,\},
+\end{equation}
+%
+i.e.\ the group $\langle\omega\rangle$ shifted by the offset $g$. The
+codeword committed by the prover is $\bigl(f(g\omega^j)\bigr)_{j=0}^{N-1}$,
+computed by scaling the $i$-th coefficient of $f$ by $g^i$ and applying
+the NTT (\cref{subsec:ntt,subsec:lde}). In our implementation $\omega$
+and $g$ are returned by \texttt{two\_adic\_generator(k)} and
+\texttt{two\_adic\_generator(k+1)} respectively, and the scaled NTT is
+performed by \texttt{coset\_lde}.
+
+Three properties follow, and together they justify the folding step.
+ 
+\begin{proposition}
+\label{prop:domain}
+With $D$ as in \cref{eq:domain} and $N = 2^k$, $k \geq 1$:
+\begin{enumerate}
+  \item $\omega^{N/2} = -1$;
+  \item $D$ is closed under negation: $-\,g\omega^{j} = g\omega^{j+N/2}$
+    for $j < N/2$;
+  \item $D^{(2)} = \omega \cdot \langle\omega^2\rangle$, a coset of the
+    subgroup of order $N/2$; in particular $|D^{(2)}| = N/2$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+\emph{(1)} The element $\omega^{N/2}$ squares to
+$\omega^N = 1$, so it is a square root of unity. It cannot equal $1$,
+since $\omega$ has order exactly $N$; as $\Fp$ is a field, the only
+square roots of unity are $\pm 1$, hence $\omega^{N/2} = -1$.
+
+\emph{(2)} Using (1),
+$g\omega^{j+N/2} = g\omega^{j}\cdot\omega^{N/2} = -\,g\omega^{j}$, and
+the index $j+N/2$ lies in $\{0,\dots,N-1\}$, so the negated element is
+again in $D$.
+
+\emph{(3)} Squaring an element of $D$ and applying \cref{eq:g_squared}
+gives $(g\omega^{j})^2 = g^2\omega^{2j} = \omega^{2j+1}$, so
+$D^{(2)} = \{\omega^{2j+1} : j = 0,\dots,N-1\}$, the subgroup
+$\langle\omega^2\rangle$ shifted by $\omega$. By (2) the map
+$x \mapsto x^2$ identifies $x$ with $-x$, so it is two-to-one on $D$
+and $|D^{(2)}| = N/2$.
+\end{proof}
+
+Property~(3) is what makes the construction \emph{self-reproducing}:
+the squared domain is again a coset of a two-power subgroup, of the
+same shape as $D$ but half the size, now described by the pair
+$(\omega, \omega^2)$ in place of $(g, \omega)$. A single FRI round
+therefore updates the domain simply by squaring both parameters,
+%
+\begin{equation}
+\label{eq:domain_update}
+g \leftarrow g^2, \qquad \omega \leftarrow \omega^2,
+\end{equation}
+%
+which in our implementation is the update
+\texttt{offset = offset*offset}, \texttt{omega = omega*omega} applied
+at the end of each layer. The requirements of
+\cref{subsec:domain_requirements} are preserved at every level, as long
+as the subgroup order remains even.
+
+\begin{example}
+\label{ex:domain_f17}
+Take $\F_{17}$, whose multiplicative group has order $16 = 2^4$, with
+generator $\gamma = 3$. For $N = 8$ we get $\omega = 3^2 = 9$ and
+$g = 3^1 = 3$, so $g^2 = 9 = \omega$ as required by
+\cref{eq:g_squared}. The evaluation domain is
+%
+\[
+D = \{3, 10, 5, 11, 14, 7, 12, 6\}.
+\]
+%
+Its elements pair up as $(3,14)$, $(10,7)$, $(5,12)$, $(11,6)$, each
+pair summing to $0 \bmod 17$ --- this is $-\,g\omega^{j} = g\omega^{j+4}$
+in action. Squaring gives $D^{(2)} = \{9, 15, 8, 2\}$, of size $4$,
+which is exactly the coset
+$\omega\cdot\langle\omega^2\rangle = 9\cdot\langle 13\rangle$ built from
+the updated parameters.
+\end{example}
