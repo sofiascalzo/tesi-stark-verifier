@@ -34,19 +34,19 @@ A naive solution is instructive. The verifier could ask the prover to
 open $f$ at $\rho|S|$ positions, interpolate the unique polynomial of
 degree less than $\rho|S|$ through them, and check that it agrees with
 $f$ elsewhere. This fails on two counts: the number of openings is
-proportional to the degree bound, which may be in the millions, and
-every opening carries a Merkle authentication path of $\log|S|$ hash
-values (\cref{sec:merkle_trees}), so the proof size becomes
-prohibitive.
+proportional to the degree bound, which can reach $2^{20}$ or more in
+practical instances, and every opening carries a Merkle authentication
+path of $\log|S|$ hash values (\cref{sec:merkle_trees}), so the proof
+size becomes prohibitive.
  
 FRI takes a different route. Instead of testing the degree directly,
 it \emph{reduces} it: the prover repeatedly halves the degree of the
 committed polynomial using randomness supplied by the verifier, until
-a constant remains. Each reduction step is committed, and the verifier
-spot-checks the consistency of the steps at a small number of random
-positions. If the original function is far from the code, then with
-high probability at least one reduction is inconsistent, and the
-verifier detects it.
+the degree is small enough to send the remaining polynomial directly.
+Each reduction step is committed, and the verifier spot-checks the
+consistency of the steps at a small number of random positions. If the
+original function is far from the code, then with high probability at
+least one reduction is inconsistent, and the verifier detects it.
  
 This yields a protocol with prover arithmetic complexity strictly
 linear in $|S|$ and verifier arithmetic complexity strictly
@@ -63,47 +63,7 @@ verification does not certify that the committed vector is exactly a
 Reed-Solomon codeword, only that it is close to one in relative
 Hamming distance. This distinction is central to the soundness
 analysis of the FRI protocol.
-\end{remark}
+\end{remark}  % citare soundess proof
  
 
-\subsection{Commit Phase}
-\label{subsec:commit_phase}
-
-\subsection{Query Phase}
-\label{subsec:query_phase}
-
-\subsection{Verification and the Colinearity Check}
-\label{subsec:verification}
-
-
-\section{Fiat-Shamir and the Challenger}
-\label{sec:fri_fiatshamir}
-
-\subsection{The Transcript and its Ordering}
-\label{subsec:transcript}
-
-\subsection{The Duplex Sponge over Keccak}
-\label{subsec:sponge}
-
-
-\section{Soundness}
-\label{sec:fri_soundness}
-
-\subsection{Proximity, not Membership}
-\label{subsec:proximity}
-
-\subsection{Distance Preservation under Folding}
-\label{subsec:distance_preservation}
-
-\subsection{Correlated Agreement and Mutual Correlated Agreement}
-\label{subsec:mca}
-
-\subsection{Round-by-round Soundness of FRI}
-\label{subsec:rbr}
-
-\subsection{Provable versus Conjectured Regimes}
-\label{subsec:regimes}
-
-
-\section{Parameter Selection}
-\label{sec:fri_parameters}
+ 
