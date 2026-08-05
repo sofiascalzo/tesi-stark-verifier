@@ -1,0 +1,109 @@
+\chapter{The FRI Protocol}
+\label{ch:fri}
+ 
+This chapter presents the Fast Reed-Solomon Interactive Oracle Proof of
+Proximity, the protocol at the core of the system implemented in
+this thesis. We begin by stating the problem FRI solves, then describe
+the algebraic structure of the evaluation domain, and finally the
+folding operation that drives the protocol.
+
+\section{Overview and Problem Statement}
+\label{sec:fri_overview}
+
+ 
+Recall from \cref{def:rs_code} that, for a subset $S \subseteq \F$ and
+a rate parameter $\rho \in (0,1)$, the Reed-Solomon code
+$\RS[\F, S, \rho]$ consists of the evaluations on $S$ of polynomials of
+degree less than $\rho|S|$. The problem FRI addresses is the following.
+ 
+\begin{definition}[Rate Proximity Testing (RPT) {\cite[Section~2.1]{BBHR18}}]
+\label{def:rpt}
+A verifier is given oracle access to a function $f : S \to \F$, together
+with auxiliary information supplied by a prover. The verifier must
+distinguish, with high probability and using only a small number of
+queries, between the case that $f \in \RS[\F, S, \rho]$ and the case
+that $f$ is far from every member of $\RS[\F, S, \rho]$ in relative
+Hamming distance (\cref{def:hamming}).
+\end{definition}
+ 
+RPT is a special case of the low-degree testing problem, and
+Ben-Sasson et al.\ identify it as a major bottleneck for transparent
+proof systems~\cite[Section~2.1]{BBHR18}.
+ 
+A naive solution is instructive. The verifier could ask the prover to
+open $f$ at $\rho|S|$ positions, interpolate the unique polynomial of
+degree less than $\rho|S|$ through them, and check that it agrees with
+$f$ elsewhere. This fails on two counts: the number of openings is
+proportional to the degree bound, which may be in the millions, and
+every opening carries a Merkle authentication path of $\log|S|$ hash
+values (\cref{sec:merkle_trees}), so the proof size becomes
+prohibitive.
+ 
+FRI takes a different route. Instead of testing the degree directly,
+it \emph{reduces} it: the prover repeatedly halves the degree of the
+committed polynomial using randomness supplied by the verifier, until
+a constant remains. Each reduction step is committed, and the verifier
+spot-checks the consistency of the steps at a small number of random
+positions. If the original function is far from the code, then with
+high probability at least one reduction is inconsistent, and the
+verifier detects it.
+ 
+This yields a protocol with prover arithmetic complexity strictly
+linear in $|S|$ and verifier arithmetic complexity strictly
+logarithmic~\cite[Section~2.1]{BBHR18}. In the terminology of
+\cref{sec:iop}, FRI is an interactive oracle proof of proximity (IOPP)
+for Reed-Solomon codes: the prover's messages are committed
+codewords which the verifier queries at a bounded number of positions,
+rather than reading in full.
+ 
+\begin{remark}
+\label{rem:proximity_not_membership}
+FRI establishes \emph{proximity}, not membership. A successful
+verification does not certify that the committed vector is exactly a
+Reed-Solomon codeword, only that it is close to one in relative
+Hamming distance. This distinction is central to the soundness
+analysis of the FRI protocol.
+\end{remark}
+ 
+
+\subsection{Commit Phase}
+\label{subsec:commit_phase}
+
+\subsection{Query Phase}
+\label{subsec:query_phase}
+
+\subsection{Verification and the Colinearity Check}
+\label{subsec:verification}
+
+
+\section{Fiat-Shamir and the Challenger}
+\label{sec:fri_fiatshamir}
+
+\subsection{The Transcript and its Ordering}
+\label{subsec:transcript}
+
+\subsection{The Duplex Sponge over Keccak}
+\label{subsec:sponge}
+
+
+\section{Soundness}
+\label{sec:fri_soundness}
+
+\subsection{Proximity, not Membership}
+\label{subsec:proximity}
+
+\subsection{Distance Preservation under Folding}
+\label{subsec:distance_preservation}
+
+\subsection{Correlated Agreement and Mutual Correlated Agreement}
+\label{subsec:mca}
+
+\subsection{Round-by-round Soundness of FRI}
+\label{subsec:rbr}
+
+\subsection{Provable versus Conjectured Regimes}
+\label{subsec:regimes}
+
+
+\section{Parameter Selection}
+\label{sec:fri_parameters}
