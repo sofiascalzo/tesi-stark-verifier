@@ -645,3 +645,88 @@ the step disabled, so it contributes no additional security in the
 configuration we evaluate; we return to its effect on the security level
 in \cref{sec:fri_parameters}.
 \end{remark}
+
+%-----------------------------------------------------------------------
+
+\section{Soundness}
+\label{sec:fri_soundness}
+
+%----------------------------------------------------------------------------
+
+\section{Parameter Selection}
+\label{sec:fri_parameters}
+
+The soundness bound of \cref{thm:rbr} turns the choice of parameters
+into a choice of security level. This section reads that bound in the
+provable Johnson regime and reports the parameters used in our
+implementation, contrasting them with the values a production system
+would use.
+
+Recall the two error terms. The folding term is
+$\tfrac{r}{|\mathbb{K}|}\cdot\mathrm{poly}(|D|)$ and depends on the size
+of the challenge field; the query term is $(1-\delta)^{s}$ and depends
+on the number of queries $s$ and the distance $\delta$. Since we sample
+challenges from the quartic extension $\Fpk$, with
+$|\mathbb{K}| = p^4 \approx 2^{124}$, the folding term is at most about
+$2^{-122}$ for the round counts we use and is never the bottleneck. The
+security level is therefore set by the query term.
+
+In the provable regime the distance is bounded by the Johnson radius
+$\delta < 1 - \sqrt{\rho}$ (\cref{thm:johnson}). Each query then
+contributes
+%
+\begin{equation}
+\label{eq:bits_per_query}
+-\log_2(1-\delta) \;=\; \tfrac{1}{2}\log_2(1/\rho)
+\end{equation}
+%
+bits of security, so $s$ queries give $\tfrac{s}{2}\log_2(1/\rho)$ bits.
+The rate $\rho$ thus controls how much each query is worth: a smaller
+rate (a larger blowup factor) buys more bits per query, at the cost of a
+larger evaluation domain and more prover work.
+
+\paragraph{Parameters used in this work.}
+Our configuration is the one fixed in the test harness:
+%
+\[
+\texttt{log\_blowup} = 1,\quad
+\texttt{num\_queries} = 20,\quad
+\texttt{proof\_of\_work\_bits} = 0,\quad
+\texttt{final\_poly\_len} = 2 .
+\]
+%
+This gives a rate $\rho = 1/2$, so by \cref{eq:bits_per_query} each query
+is worth $\tfrac12\log_2 2 = 0.5$ bits, and $20$ queries provide about
+$10$ bits of provable security, with no grinding. This is deliberately a
+\emph{test} configuration, chosen so that proofs are small and fast to
+generate while exercising every part of the protocol; it is not a
+production security level.
+
+\paragraph{Reaching a production level.}
+Two independent knobs raise the security level. Lowering the rate
+increases the bits per query: at $\rho = 1/8$ each query is worth
+$1.5$ bits, and at $\rho = 1/16$ it is worth $2$ bits. Adding grinding
+of $g$ bits (\cref{rem:grinding}) contributes a further $g$ bits at
+negligible verifier cost. A typical production target of $100$ bits is
+reached, for example, with a blowup of $16$, around $40$ queries, and
+$20$ grinding bits. The following table summarises the trade-off.
+
+\begin{center}
+\begin{tabular}{lcccc}
+\hline
+ & blowup & $\rho$ & bits/query & queries for $100$ bits \\
+\hline
+This work (test) & $2$  & $1/2$  & $0.5$ & n/a \\
+Moderate  & $8$  & $1/8$  & $1.5$ & $\approx 54$ \\
+Aggressive  & $16$ & $1/16$ & $2.0$ & $\approx 40$ \\
+\hline
+\end{tabular}
+\end{center}
+
+The last column assumes no grinding; adding $g$ grinding bits reduces the
+required queries by $g/(\text{bits per query})$. The table makes the
+central trade-off explicit: a larger blowup makes each query more
+powerful, so fewer are needed, but it enlarges the committed codeword and
+so raises the prover's cost and the proof size. Our test parameters sit
+at the cheap, low-security end of this spectrum, which is appropriate for
+validating correctness but would be raised for any real deployment.
