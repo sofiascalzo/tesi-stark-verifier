@@ -74,7 +74,7 @@ analysis of the FRI protocol.
  
 The folding step of FRI relies on specific algebraic structure in the
 evaluation domain. We state the requirements first, then give the
-co(\cref{sec:fri_folding})nstruction used in our implementation.
+construction used in our implementation.
  
  
 \subsection{Requirements}
@@ -139,7 +139,7 @@ g^2 = \omega,
 which, as we show below, is exactly what makes the domain reproduce
 itself under squaring.
 
-The evaluation domain is the coset (\cref{def:coset})
+The evaluation domain is the coset
 %
 \begin{equation}
 \label{eq:domain}
@@ -217,9 +217,431 @@ D = \{3, 10, 5, 11, 14, 7, 12, 6\}.
 \]
 %
 Its elements pair up as $(3,14)$, $(10,7)$, $(5,12)$, $(11,6)$, each
-pair summing to $0 \bmod 17$ --- this is $-\,g\omega^{j} = g\omega^{j+4}$
+pair summing to $0 \bmod 17$, this is $-\,g\omega^{j} = g\omega^{j+4}$
 in action. Squaring gives $D^{(2)} = \{9, 15, 8, 2\}$, of size $4$,
 which is exactly the coset
 $\omega\cdot\langle\omega^2\rangle = 9\cdot\langle 13\rangle$ built from
 the updated parameters.
 \end{example}
+
+
+\section{The Folding Operation}
+\label{sec:fri_folding}
+
+Folding is the algebraic core of FRI. In one step it takes a polynomial
+$f$ of degree less than $d$, given by its values on the domain $D$, and
+produces a new polynomial of degree less than $d/2$, given by its values
+on the smaller domain $D^{(2)}$. The reduction uses a single random
+challenge and no interpolation: the values of the new polynomial are a
+simple combination of the values of the old one. Repeating this step
+reduces the degree by half each time; the prover stops once the
+polynomial is small enough to send directly, and transmits its remaining
+coefficients in the clear.
+
+The section is organised around the three questions that folding
+answers: how a polynomial splits into two halves
+(\cref{subsec:even_odd}), how those halves are recovered from evaluations
+alone (\cref{subsec:recovering}), and how the challenge combines them
+into the folded polynomial (\cref{subsec:the_fold}). The two polynomials
+$f_e$ and $f_o$ introduced next appear throughout the section in three
+guises. They are first defined as polynomials, then evaluated at a point,
+then recombined, but they are always the same two objects.
+
+
+\subsection{Even-Odd Decomposition}
+\label{subsec:even_odd}
+
+The first step is to split $f$ into the part carried by its even-indexed
+coefficients and the part carried by its odd-indexed ones. Grouping the
+coefficients this way lets us write $f$ in terms of two polynomials in
+$X^2$, each of roughly half the degree.
+
+\begin{definition}[Even-Odd Decomposition]
+\label{def:even_odd}
+Let $f(X) = \sum_{i=0}^{d-1} c_i X^i \in \Fp[X]$. Define
+%
+\[
+f_{e}(Y) = \sum_{i \text{ even}} c_i \, Y^{i/2},
+\qquad
+f_{o}(Y) = \sum_{i \text{ odd}} c_i \, Y^{(i-1)/2}.
+\]
+%
+Then $f$ decomposes uniquely as
+%
+\begin{equation}
+\label{eq:even_odd}
+f(X) = f_{e}(X^2) + X \cdot f_{o}(X^2),
+\end{equation}
+%
+and both $f_e$ and $f_o$ have degree less than $\lceil d/2 \rceil$.
+\end{definition}
+
+In words: $f_e$ collects the even coefficients $c_0, c_2, c_4, \ldots$
+and $f_o$ the odd ones $c_1, c_3, c_5, \ldots$, each repackaged as a
+polynomial in $Y = X^2$. Equation~\eqref{eq:even_odd} just puts them back
+together, with the extra factor $X$ accounting for the odd powers. Each
+half keeps at most $d/2$ of the original $d$ coefficients, which is why
+its degree is halved. This is the same split that drives the recursive
+step of the NTT (\cref{subsec:ntt}), and it is the decomposition FRI uses
+in the commit phase.
+
+
+\subsection{Recovering the Components from a Pair}
+\label{subsec:recovering}
+
+There is a catch: the prover does not hold $f$ as a list of coefficients,
+but as a list of values on $D$. So the values of $f_e$ and $f_o$ must be
+recovered from the values of $f$ alone. The trick is to evaluate $f$ at a
+point $x$ and at its negative $-x$. Because $(-x)^2 = x^2$, both
+evaluations land on the same point $x^2$ of the squared domain, and the
+odd part flips sign:
+%
+\begin{equation}
+\label{eq:fold_system}
+\begin{aligned}
+f(x)  &= f_{e}(x^2) + x \cdot f_{o}(x^2), \\
+f(-x) &= f_{e}(x^2) - x \cdot f_{o}(x^2).
+\end{aligned}
+\end{equation}
+%
+These are two linear equations in the two unknowns $f_{e}(x^2)$ and
+$f_{o}(x^2)$. Adding them isolates the even part; subtracting them
+isolates the odd part. Since $x \neq 0$ for every $x \in D$, we can
+divide and obtain
+%
+\begin{equation}
+\label{eq:fold_solve}
+f_{e}(x^2) = \frac{f(x) + f(-x)}{2},
+\qquad
+f_{o}(x^2) = \frac{f(x) - f(-x)}{2x}.
+\end{equation}
+%
+So a single pair of values $\bigl(f(x), f(-x)\bigr)$ determines both
+components at the point $x^2 \in D^{(2)}$. By \cref{prop:domain} that pair
+is stored in the codeword at indices $i$ and $i + N/2$, so the prover
+finds it by reading two entries that sit exactly half the list apart.
+
+
+\subsection{The Fold}
+\label{subsec:the_fold}
+
+The final step mixes the two halves using the verifier's random
+challenge $\alpha$. The mix collapses $f_e$ and $f_o$ into one polynomial
+of half the degree.
+
+\begin{definition}[FRI Fold]
+\label{def:fold}
+Let $f$ have degree less than $d$ and let $\alpha$ be a challenge sampled
+from a field $\mathbb{K} \supseteq \Fp$. The \emph{fold} of $f$ with
+respect to $\alpha$ is
+%
+\begin{equation}
+\label{eq:fold}
+f^{(\alpha)}(Y) := f_{e}(Y) + \alpha \cdot f_{o}(Y) ,
+\end{equation}
+%
+a polynomial over $\mathbb{K}$ of degree less than $\lceil d/2 \rceil$.
+\end{definition}
+
+Putting \cref{eq:fold} together with \cref{eq:fold_solve}, the values of
+$f^{(\alpha)}$ on $D^{(2)}$ come straight from the values of $f$ on $D$,
+with no interpolation anywhere:
+%
+\begin{equation}
+\label{eq:fold_evaluations}
+f^{(\alpha)}(x^2)
+  = \frac{f(x) + f(-x)}{2}
+  + \alpha \cdot \frac{f(x) - f(-x)}{2x} .
+\end{equation}
+%
+This is exactly what our implementation does: for each $i < N/2$ it reads
+the two entries at indices $i$ and $i + N/2$, applies
+\cref{eq:fold_evaluations} with $x = g\omega^{i}$, and writes out a
+codeword of length $N/2$ on the domain $D^{(2)}$ given by the updated
+parameters of \cref{eq:domain_update}.
+
+One round thus halves two things at once: the degree bound, by
+\cref{def:fold}, and the domain size, by \cref{prop:domain}. The rate
+$\rho$ stays the same, so the folded codeword is again a Reed-Solomon
+codeword of the same rate, which is what lets the next round repeat the
+identical step. The prover keeps folding until the codeword reaches a
+fixed target length, at which point it sends the remaining layer
+directly; in our implementation this target is the parameter
+\texttt{final\_poly\_len}, and the commit phase folds while the codeword
+is longer than \texttt{final\_poly\_len}.
+
+% alpha is sampled from F_{p^4} by the challenger; from round 0 onwards
+% the codeword entries are extension field elements.
+\begin{remark}[Arithmetic in the extension field]
+\label{rem:ext_field_fold}
+The initial codeword has entries in $\Fp$, but the challenge $\alpha$ is
+sampled from the quartic extension $\Fpk$ (\cref{subsec:field_ext}).
+Because \cref{eq:fold} multiplies $f_o$ by $\alpha$, the folded
+polynomial already has coefficients in $\Fpk$, and so does every layer
+after it. In our implementation this switch happens at the very first
+fold: the initial codeword holds base-field elements, every later layer
+holds extension-field elements, and the Merkle leaves grow accordingly
+from four to sixteen bytes.
+\end{remark}
+
+\begin{example}
+\label{ex:fold_f17}
+We continue \cref{ex:domain_f17}. Let
+$f(X) = 1 + 2X + 3X^2 + 4X^3$ over $\F_{17}$, so $d = 4$, $N = 8$, and
+$\rho = 1/2$. Evaluating $f$ on $D = \{3, 10, 5, 11, 14, 7, 12, 6\}$
+gives the codeword
+%
+\[
+\bigl(f(x)\bigr)_{x \in D} = (6, 3, 8, 15, 16, 4, 8, 16).
+\]
+%
+Splitting $f$ as in \cref{def:even_odd} gives $f_e(Y) = 1 + 3Y$ and
+$f_o(Y) = 2 + 4Y$. With the challenge $\alpha = 5$, the fold is
+%
+\[
+f^{(5)}(Y) = (1 + 3Y) + 5\,(2 + 4Y) = 11 + 6Y ,
+\]
+%
+of degree $1 < 2$, exactly as \cref{def:fold} predicts. Applying
+\cref{eq:fold_evaluations} to the four pairs $\bigl(f(x), f(-x)\bigr)$
+gives the codeword $(14, 16, 8, 6)$ on $D^{(2)} = \{9, 15, 8, 2\}$, which
+is precisely the evaluation of $11 + 6Y$ on that domain. Both the degree
+bound and the domain size have halved, and the rate is still
+$2/4 = 1/2$.
+\end{example}
+
+\section{The Protocol}
+\label{sec:fri_protocol}
+
+The folding operation of \cref{sec:fri_folding} is the engine; the
+protocol is what wraps it into an interaction between prover and
+verifier. It has two phases. In the \emph{commit phase} the prover folds
+the polynomial down to a short final layer, committing to each
+intermediate codeword with a Merkle tree so that it cannot change its
+mind later. In the \emph{query phase} the verifier picks a few random
+positions and asks the prover to reveal the values needed to re-check
+that each fold was done correctly. If the prover cheated, that is, if the
+starting codeword was not close to a low-degree polynomial, then at least
+one of these checks fails with high probability.
+
+Throughout, $D_0 = D$ is the initial domain of size $N$, and
+$D_{r}$ is the domain after $r$ folds, of size $N/2^r$.
+
+
+\subsection{Commit Phase}
+\label{subsec:commit_phase}
+
+The prover starts from the coefficients of $f$, extends them to a
+codeword on $D$ by the low-degree extension (\cref{subsec:lde}), and then
+repeats the same three actions at every round: commit, receive a
+challenge, fold.
+
+\begin{enumerate}
+  \item \textbf{Commit.} Build a Merkle tree over the current codeword
+    and send its root. This binds the prover to that exact codeword: any
+    later opening must be consistent with the root.
+  \item \textbf{Challenge.} Obtain the folding challenge $\alpha_r$ from
+    the verifier (in the non-interactive setting, from the transcript;
+    see \cref{sec:fri_fiatshamir}).
+  \item \textbf{Fold.} Apply \cref{eq:fold_evaluations} with $\alpha_r$
+    to halve the codeword, and square the two domain parameters
+    (\cref{eq:domain_update}) to move to $D_{r+1}$.
+\end{enumerate}
+
+The loop stops once the codeword has shrunk to the target length
+$\ell = \texttt{final\_poly\_len}$, at which point the prover sends the
+remaining layer directly. The number of rounds is therefore
+$\log_2(N/\ell)$.
+
+In our implementation these steps are the body of \texttt{commit\_phase}:
+the codeword is produced by \texttt{coset\_lde}, each root is committed
+with a \texttt{MerkleTree} over \texttt{sha256} of the entries, the
+challenge is drawn by \texttt{sample\_ext\_field}, and \texttt{fold}
+performs the reduction. For the running example, with $f$ of length $8$
+and blowup $2$, so $N = 16$ and $\ell = 2$, the loop runs
+$\log_2(16/2) = 3$ times, producing three Merkle roots and a final layer
+of two elements.
+
+
+\subsection{Query Phase}
+\label{subsec:query_phase}
+
+Committing to the codewords is not enough on its own: the verifier must
+check that consecutive layers are actually related by the fold. It does
+so by sampling a small number of random positions and, at each one,
+asking the prover for just the values needed to recompute one fold.
+
+For a single query the verifier picks an index and follows it down
+through the layers. At round $r$, with domain size $n_r$, the index
+determines a pair of positions half the list apart,
+%
+\[
+\mathrm{lo} = \mathrm{idx} \bmod (n_r/2),
+\qquad
+\mathrm{hi} = \mathrm{lo} + n_r/2 ,
+\]
+%
+which are exactly the entries $f(x)$ and $f(-x)$ that
+\cref{eq:fold_evaluations} combines. The prover returns both values
+together with their Merkle authentication paths. The index for the next
+round is then $\mathrm{idx} \leftarrow \mathrm{lo}$, so one random choice
+in the first layer determines the whole chain of positions down to the
+final layer.
+
+This is realised by \texttt{query\_phase}: the verifier samples
+\texttt{num\_queries} indices in the range $[0, N/2)$, and for each one
+walks the rounds, opening the two Merkle paths per layer. Each query thus
+costs one pair of openings per round, that is, $\log_2(N/\ell)$ pairs.
+
+
+\subsection{Verification and the Colinearity Check}
+\label{subsec:verification}
+
+The verifier holds only the proof, namely the Merkle roots, the final
+layer, and the opened values with their paths, and must decide whether to
+accept. It proceeds in three steps.
+
+First, it \textbf{reconstructs the challenges}. Re-reading the roots and
+the final layer from the transcript in the same order the prover wrote
+them, it recomputes every $\alpha_r$ and every domain parameter, and
+checks that the number of rounds matches the expected
+$\log_2(N/\ell)$.
+
+Second, for each queried position it \textbf{checks the Merkle paths},
+confirming that the two opened values really sit at their claimed
+positions under the committed root. A failed path means the prover is
+opening something it did not commit to.
+
+Third, it performs the \textbf{colinearity check}. Using the opened pair
+$(\mathrm{lo}, \mathrm{hi})$ at round $r$, it recomputes the folded value
+by the same rule the prover should have used,
+%
+\begin{equation}
+\label{eq:colinearity}
+v = \frac{\mathrm{lo} + \mathrm{hi}}{2}
+  + \alpha_r \cdot \frac{\mathrm{lo} - \mathrm{hi}}{2\,x},
+\qquad x = \mathrm{offset}_r \cdot \omega_r^{\,\mathrm{lo}},
+\end{equation}
+%
+and compares $v$ against the value at the corresponding position of the
+\emph{next} layer, which is an opened entry for intermediate rounds, or
+the final layer for the last round. If the two disagree, the fold was not
+performed honestly and the verifier rejects.
+
+The name \emph{colinearity check} comes from the geometry of
+\cref{eq:colinearity}. The two points $(x, \mathrm{lo})$ and
+$(-x, \mathrm{hi})$, together with the folded value at $\alpha_r$, must
+lie on a single line, since the line through $f(x)$ and $f(-x)$ evaluated
+at $\alpha_r$ is exactly $f^{(\alpha_r)}(x^2)$. Each query verifies one
+such local relation per layer; a codeword far from low degree cannot
+satisfy all of them at once, so a handful of random queries suffices to
+catch a cheating prover.
+
+In our implementation this is \texttt{fri\_verify}: it rebuilds the
+$\alpha_r$ from the transcript, replays the two \texttt{assert}s on the
+round count and final-layer length, re-derives the query indices, and for
+each query checks the two Merkle paths with \texttt{verify\_proof} and
+the colinearity relation of \cref{eq:colinearity} against either the next
+opened value or \texttt{final\_poly}.
+
+%-------------------------------------------------------------
+
+\section{Fiat-Shamir and the Challenger}
+\label{sec:fri_fiatshamir}
+
+The protocol of \cref{sec:fri_protocol} is interactive: at each round the
+prover commits and the verifier answers with a random challenge
+$\alpha_r$. To turn it into a proof that can be written down once and
+checked offline, the interaction is removed with the Fiat-Shamir
+transformation (\cref{subsec:fiat_shamir}): instead of waiting for the
+verifier, the prover derives each challenge itself, by hashing everything
+it has sent so far. The verifier, holding the same transcript, recomputes
+the identical challenges and so can replay every check.
+
+The component that maintains this transcript and produces the challenges
+is the \emph{challenger}. This section describes what it must guarantee
+(\cref{subsec:transcript}) and how our implementation realises it with a
+duplex sponge built on Keccak (\cref{subsec:sponge}).
+
+
+\subsection{The Transcript and its Ordering}
+\label{subsec:transcript}
+
+A challenge is safe only if it depends on everything the prover has
+committed up to that point. If the prover could choose a Merkle root
+\emph{after} seeing the challenge that will be applied to it, it could
+search for a root that makes a dishonest fold pass the colinearity check.
+Binding each challenge to the full prior transcript removes this freedom:
+by the time $\alpha_r$ is fixed, the root of layer $r$ is already
+absorbed and can no longer be changed.
+
+Concretely, the challenger alternates two operations. It \emph{absorbs}
+the prover's messages, updating an internal state, and it \emph{squeezes}
+that state to produce challenges. During the commit phase the prover
+absorbs the parameters, then, for each round, absorbs the Merkle root and
+squeezes the folding challenge $\alpha_r$; after the last fold it absorbs
+the final layer. The query indices are squeezed once the whole commit
+transcript is fixed.
+
+The single rule that makes this sound is that the verifier must reproduce
+the \emph{same operations in the same order}. Our \texttt{fri\_verify}
+does exactly this: it absorbs each root and squeezes each $\alpha_r$ in
+the same sequence as the prover, absorbs the final layer, and only then
+squeezes the query indices with \texttt{sample\_indices}. Any mismatch in
+order would yield different challenges and reject an honest proof.
+
+
+\subsection{The Duplex Sponge over Keccak}
+\label{subsec:sponge}
+
+The absorb and squeeze operations must come from a construction where
+writing to the transcript and reading from it are genuinely distinct.
+Chiesa and Orr\`{u}~\cite{CO25} show that the \emph{duplex sponge} is such
+a construction and that the Fiat-Shamir transformation built on it
+preserves the soundness of the underlying interactive protocol. A sponge
+keeps a state split into two parts: a public \emph{rate}, into which data
+is absorbed and from which output is squeezed, and a hidden
+\emph{capacity}, never exposed directly, which carries the security of
+the construction. Absorbing and squeezing are separate operations on the
+state, so there is no ambiguity between the prover writing a message and
+the verifier reading a challenge, which is the property a Merkle-Damg\r{a}rd
+hash such as SHA-256 does not cleanly provide.
+
+Our challenger instantiates this over the Keccak-$f$[1600] permutation.
+The state is $1600$ bits, viewed as $25$ lanes of $64$ bits; the first
+$17$ lanes ($136$ bytes) are the rate and the remaining $8$ lanes
+($64$ bytes) are the capacity. Absorbing XORs each byte into the rate and
+applies the permutation whenever the rate fills; squeezing reads bytes
+back out of the rate, permuting again when it is exhausted. The switch
+from absorbing to squeezing is marked by the standard Keccak padding.
+
+Two kinds of challenge are drawn from the squeezed bytes:
+
+\begin{itemize}
+  \item The folding challenges $\alpha_r$ are elements of the quartic
+    extension $\Fpk$ (\cref{rem:ext_field_fold}). Each is built by
+    squeezing $16$ bytes and reading four base-field coefficients from
+    them, one per $32$-bit word. This is \texttt{sample\_ext\_field}.
+  \item The query indices are integers in $[0, N/2)$, each obtained by
+    squeezing bytes and reducing modulo the domain size. This is
+    \texttt{sample\_indices}.
+\end{itemize}
+
+The whole permutation is implemented from scratch in \texttt{keccak.py},
+so the challenger depends on no external cryptographic library. This
+follows the design of the reference implementation \texttt{spongefish}
+that accompanies~\cite{CO25}, and keeps the trusted computing base of the
+system limited to the Keccak permutation and the SHA-256 used for the
+Merkle trees (\cref{sec:hash_functions}).
+
+\begin{remark}[Grinding]
+\label{rem:grinding}
+A proof-of-work step, or \emph{grinding}, is often added to the
+transcript: before sampling the query indices the prover must find a
+nonce whose hash has a prescribed number of leading zeros, which raises a
+cheating prover's cost by a fixed number of bits. Our implementation
+reserves a parameter for this (\texttt{proof\_of\_work\_bits}) but leaves
+the step disabled, so it contributes no additional security in the
+configuration we evaluate; we return to its effect on the security level
+in \cref{sec:fri_parameters}.
+\end{remark}
