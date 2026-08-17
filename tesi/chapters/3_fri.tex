@@ -651,6 +651,172 @@ in \cref{sec:fri_parameters}.
 \section{Soundness}
 \label{sec:fri_soundness}
 
+The earlier sections describe an honest prover. Soundness asks the
+opposite: if the committed function is \emph{not} close to any low-degree
+polynomial, can a cheating prover still make the verifier accept? We show
+the answer is no, except with small probability, following the
+round-by-round analysis of Garreta, Mohnblatt, and Wagner~\cite{GMW25},
+which gives the simplest known soundness proof for FRI in the form
+implemented here.
+
+One point frames everything that follows. FRI certifies \emph{proximity},
+not equality (\cref{rem:proximity_not_membership}): the verifier never
+learns that the committed vector is exactly a codeword, only that it is
+close to one. Soundness must therefore be stated in terms of distance. We
+fix a distance parameter $\delta$ and ask that, if the initial function
+is $\delta$-far from the code $\RS[\F, D, \rho]$ in relative Hamming
+distance (\cref{def:hamming}), then the verifier rejects with high
+probability. The difficulty is that the protocol only ever inspects a few
+points, so we must argue that being far from the code cannot quietly
+disappear during folding, and that it is caught by the queries.
+
+
+\subsection{The Two Things That Can Go Wrong}
+\label{subsec:two_risks}
+
+A cheating prover has exactly two ways to succeed, and the proof bounds
+each in turn.
+
+The first is that \emph{folding rescues a far function}. Each round
+replaces the current layer $f_i$ by
+$f_{i+1} = f_{i,e} + \alpha_i f_{i,o}$, a random linear combination of its
+two halves. If some challenge $\alpha_i$ made $f_{i+1}$ close to the code
+even though $f_i$ was far, the prover would have folded its way from a
+dishonest layer to an honest-looking one, and no amount of querying would
+detect it. So we need folding to \emph{preserve distance}: for all but a
+few unlucky $\alpha_i$, a far layer stays far.
+
+The second is that \emph{the queries all miss}. Even if every layer stays
+far, the verifier only checks a few random positions. If the far parts of
+the final layer happened to avoid every queried position, the cheat would
+slip through. So we need enough queries that missing all of them is
+unlikely.
+
+The next two subsections address these in order: first the algebraic fact
+that makes folding preserve distance, then the theorem that combines it
+with the query bound.
+
+
+\subsection{Why Folding Preserves Distance}
+\label{subsec:mca}
+
+Distance preservation is not obvious, precisely because $f_{i+1}$ is a
+chosen linear combination of $f_{i,e}$ and $f_{i,o}$, and one might fear a
+lucky $\alpha_i$ that makes it close to the code by accident. The property
+that rules this out is \emph{correlated agreement}, introduced in the
+study of proximity gaps~\cite{BCIKS20}: if a random combination of several
+functions is close to the code, then those functions are not just
+individually close, they agree with codewords on a \emph{common} set of
+positions.
+
+The round-by-round proof uses a sharper version, \emph{mutual} correlated
+agreement, introduced in the analysis of WHIR~\cite{WHIR24}. It requires
+that the set of positions where the combination agrees with the code is
+the \emph{same} set on which the two halves agree, not merely a related
+one. This equality of sets is what lets the argument repeat cleanly at
+every round: the agreement pattern of one layer passes to the next
+without drift, so distance is tracked faithfully all the way down. This is
+why we use mutual correlated agreement rather than the older notion.
+
+Crucially, mutual correlated agreement is a \emph{theorem}, not an
+assumption, as long as the distance stays below the Johnson radius
+$1 - \sqrt{\rho}$ (\cref{thm:johnson})~\cite{GMW25}. This is the regime in
+which the soundness of our implementation is established, and we return to
+what lies beyond it at the end of the section.
+
+
+\subsection{The Soundness Theorem}
+\label{subsec:rbr}
+
+With distance preservation in hand, the two risks of
+\cref{subsec:two_risks} become two error terms.
+
+\begin{theorem}[Round-by-round soundness of FRI, informal
+  {\cite[Theorem~5.2]{GMW25}}]
+\label{thm:rbr}
+Let $f$ be $\delta$-far from $\RS[\F, D, \rho]$ with $\delta$ below the
+Johnson radius $1 - \sqrt{\rho}$. Then any cheating prover makes the
+verifier accept with probability at most
+%
+\[
+\underbrace{\frac{r}{|\mathbb{K}|}\cdot\mathrm{poly}(|D|)}
+  _{\text{folding}}
+\;+\;
+\underbrace{(1 - \delta)^{s}}
+  _{\text{queries}} ,
+\]
+%
+where $\mathbb{K}$ is the field the challenges are drawn from,
+$r = \log_2(|D|/\ell)$ the number of rounds, and $s$ the number of
+queries.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+The proof tracks one bit of information through the protocol: whether the
+current layer is still far from its code. Following~\cite{GMW25} we call
+the state \emph{doomed} while this holds. The argument is that a doomed
+state stays doomed through folding, and that a doomed final state is
+caught by the queries.
+
+\emph{The start is doomed.} By assumption $f_0$ is $\delta$-far from the
+code, so the state is doomed before any interaction. The prover has
+committed to a far vector and cannot take it back.
+
+\emph{Folding keeps it doomed} (\cite[Lemma~5.1]{GMW25}). Suppose layer
+$f_i$ is $\delta$-far. Its fold is
+$f_{i+1} = f_{i,e} + \alpha_i f_{i,o}$. If $f_{i+1}$ were close to the
+code for many values of $\alpha_i$, mutual correlated agreement
+(\cref{subsec:mca}) would force $f_{i,e}$ and $f_{i,o}$ to agree with
+codewords on a common set large enough to make $f_i$ itself close, which
+contradicts the assumption. Hence only a few $\alpha_i$ are bad, a
+fraction of about $1/|\mathbb{K}|$ of the field. A union bound over the
+$r$ rounds gives the folding term. This is the only place the field size
+enters, and it is why $\mathbb{K}$ must be the large extension $\Fpk$: a
+challenge from the base field would make $1/|\mathbb{K}|$ far too large.
+
+\emph{The queries catch a doomed final layer} (\cite[Claim~5.3]{GMW25}).
+If every fold kept the state doomed, the final layer sent in the clear is
+itself $\delta$-far from a low-degree polynomial. A single query picks a
+random position and checks the colinearity relation \cref{eq:colinearity}
+along the chain; since the final layer disagrees with the code on at least
+a $\delta$ fraction of positions, the query exposes a broken fold with
+probability at least $\delta$. The $s$ queries are independent, so all of
+them miss with probability at most $(1-\delta)^s$, the query term.
+
+The prover wins only if some fold got lucky or every query missed, so the
+total is the sum of the two terms.
+\end{proof}
+
+The two terms are controlled by different means, which is what makes the
+protocol practical. The folding term is negligible for free: with
+$\mathbb{K} = \Fpk$ of size about $2^{124}$ (\cref{rem:ext_field_fold})
+and only a handful of rounds, it sits around $2^{-122}$. The query term is
+the one the designer tunes, by choosing how many queries to make.
+
+\begin{example}
+\label{ex:query_soundness}
+Take a final layer that disagrees with the code on half its positions,
+$\delta = 1/2$, and $s = 20$ queries. One query misses with probability
+$1/2$, so twenty independent queries all miss with probability
+$(1/2)^{20} \approx 10^{-6}$, about $20$ bits of security from the query
+phase. A smaller rate raises the detection probability per query and so
+buys more bits each; \cref{sec:fri_parameters} works this trade-off out
+for the parameters we use.
+\end{example}
+
+
+\subsection{Beyond the Provable Regime}
+\label{subsec:regimes}
+
+Everything above lives below the Johnson radius $1 - \sqrt{\rho}$, where
+mutual correlated agreement is proved. One can push further, up to the
+list-decoding \emph{capacity} $1 - \rho$, by \emph{conjecturing} that the
+same distance preservation still holds; this would allow fewer queries for
+the same security. That regime is attractive for efficiency but unproven,
+and recent work has cast doubt on the strongest such conjectures. We
+therefore rely only on the provable Johnson-radius guarantee and leave the
+capacity regime out of scope.
+
 %----------------------------------------------------------------------------
 
 \section{Parameter Selection}
