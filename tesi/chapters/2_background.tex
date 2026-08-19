@@ -27,6 +27,13 @@ the multiplicative inverse can be computed via Fermat's little theorem:
 a^{-1} \equiv a^{p-2} \pmod{p}.
 \end{equation}
 
+\begin{example}
+\label{ex:prime_field}
+In $\F_7 = \{0,1,\ldots,6\}$ arithmetic wraps around modulo $7$: for
+instance $5 + 4 = 2$ and $5 \cdot 4 = 6$. The inverse of $3$ is
+$3^{p-2} = 3^{5} = 5$, since $3 \cdot 5 = 15 = 1 \bmod 7$.
+\end{example}
+
 
 \subsection{The BabyBear Field}
 \label{subsec:babybear}
@@ -59,6 +66,13 @@ An element $\omega \in \Fp$ is a \emph{primitive $N$-th root of unity}
 if $\omega^N = 1$ and $\omega^k \neq 1$ for all $0 < k < N$.
 \end{definition}
 
+\begin{example}
+\label{ex:root_of_unity}
+In $\F_7$ the element $\omega = 2$ is a primitive $3$rd root of unity:
+$2^1 = 2$, $2^2 = 4$, $2^3 = 1$, and no smaller power gives $1$. Its
+powers form the subgroup $\{1, 2, 4\}$ of order $3$.
+\end{example}
+
 Given a primitive $N$-th root of unity $\omega$, the set
 $H = \{1, \omega, \omega^2, \ldots, \omega^{N-1}\}$
 is a multiplicative subgroup of $\Fp^*$ of order $N$. Because BabyBear
@@ -70,8 +84,9 @@ taking $g^{(p-1)/2^k}$.
 % restricts our attention only to finite fields F that contain a large
 % multiplicative subgroup of size 2^h".
 These subgroups serve as evaluation domains for the polynomials in the
-STARK protocol: the execution trace is evaluated on a subgroup $H$ of
-order $2^h$, and FRI operates on a larger domain.
+Scalable Transparent Argument of Knowledge (STARK) protocol: the execution trace is evaluated on a subgroup $H$ of
+order $2^h$, and the Fast Reed-Solomon Interactive Oracle Proof of
+Proximity (FRI) operates on a larger domain.
 
 
 \subsection{Field Extensions}
@@ -86,11 +101,20 @@ degree less than $k$ with coefficients in $\Fp$.
 \end{definition}
 
 In this work we use the \emph{quartic extension} $\Fpk$, constructed
-via the irreducible polynomial $X^4 - 11$. The constant $11$ is chosen
-because it is not a fourth power in $\Fp$, which guarantees that
-$X^4 - 11$ is irreducible. An element of $\Fpk$ is a tuple
-$(c_0, c_1, c_2, c_3) \in \Fp^4$ representing
+via the irreducible polynomial $X^4 - 11$. An element of $\Fpk$ is a
+tuple $(c_0, c_1, c_2, c_3) \in \Fp^4$ representing
 $c_0 + c_1 X + c_2 X^2 + c_3 X^3$, with the reduction rule $X^4 = 11$.
+The extension has $p^4 \approx 2^{124}$ elements, large enough that a
+folding challenge sampled from it makes the soundness error negligible,
+as discussed in \cref{ch:fri}.
+
+\begin{example}
+\label{ex:field_ext}
+A smaller instance is $\F_{49} = \F_7[X]/(X^2 + 1)$, which is a field
+because $X^2 + 1$ has no root in $\F_7$. Its elements are $a + bX$ with
+$a, b \in \F_7$ and the rule $X^2 = -1$. For example,
+$(2 + 3X)(1 + X) = 2 + 5X + 3X^2 = 2 + 5X - 3 = 6 + 5X$.
+\end{example}
 
 
 % ==================================================================
@@ -151,6 +175,14 @@ subgroup $H = \{1, \omega, \ldots, \omega^{N-1}\}$, this simplifies
 to $Z_H(X) = X^N - 1$.
 \end{definition}
 
+\begin{example}
+\label{ex:vanishing}
+Take the subgroup $H = \{1, 2, 4\}$ of $\F_7^*$ from
+\cref{ex:root_of_unity}. Its vanishing polynomial is
+$Z_H(X) = (X-1)(X-2)(X-4) = X^3 - 1$, which evaluates to $0$ at each of
+$1, 2, 4$ and is nonzero elsewhere, for instance $Z_H(3) = 5$.
+\end{example}
+
 $Z_H$ vanishes on every element of $H$ and nowhere else. If a
 constraint polynomial $c(X)$ must be zero on $H$, then $Z_H(X)$
 divides $c(X)$, and the quotient $q(X) = c(X)/Z_H(X)$ is a
@@ -163,9 +195,10 @@ the basis of the STARK construction.
 \label{sec:coding_theory}
 % ==================================================================
 
-Reed-Solomon codes, and distance from them, are the objects the FRI
-protocol operates on. We recall the general definitions that the
-soundness analysis of the FRI protocol relies on.
+We recall the standard notions from coding theory that the soundness
+analysis of the FRI protocol relies on. The specific family of codes
+used in this work, the Reed-Solomon codes, is introduced in
+\cref{sec:reed_solomon} as an instance of these general definitions.
 
 \begin{definition}[Error-Correcting Code {\cite[Definition~3.1]{WHIR24}}]
 \label{def:code}
@@ -175,6 +208,14 @@ $\Sigma$ is a subset $C \subseteq \Sigma^n$. The code is a
 subspace of $\F^n$. The \emph{rate} of a linear code is
 $\rho := \dim(C)/n$.
 \end{definition}
+
+\begin{example}
+\label{ex:code}
+The set of all vectors $(a, b, a+b) \in \F_7^3$ is a linear code of
+length $n = 3$: it is a subspace of dimension $2$ (the free choices $a$
+and $b$), so its rate is $\rho = 2/3$. The third coordinate is a
+built-in check that lets some errors be detected.
+\end{example}
 
 The elements of $C$ are its \emph{codewords}, and the \emph{minimum
 distance} of a code is the smallest relative Hamming distance
@@ -198,9 +239,19 @@ radius $\delta$ is \emph{within unique decoding} if the code is
 $(\delta, 1)$-list decodable.
 \end{definition}
 
+\begin{example}
+\label{ex:list_decoding}
+Within the unique decoding radius there is at most one codeword near a
+received word, so the list $\Lambda(C, f, \delta)$ has size at most $1$
+and decoding is unambiguous. Past that radius the list can grow: a word
+sitting exactly between two codewords has both of them in its list, so
+the code is no longer $(\delta,1)$-list decodable there.
+\end{example}
+
 For a code of minimum distance $\delta_C$, any radius
 $\delta \leq \delta_C/2$ is within unique decoding. Beyond it, the list
-size for Reed-Solomon codes is controlled by the Johnson bound.
+size is controlled, for the codes we use, by the Johnson bound stated
+below.
 
 \begin{theorem}[Johnson Bound {\cite[Theorem~4.3]{WHIR24}}]
 \label{thm:johnson}
@@ -209,8 +260,17 @@ $\bigl(1 - \sqrt{\rho} - \eta,\; \tfrac{1}{2\eta\sqrt{\rho}}\bigr)$-list
 decodable for every $\eta \in (0, 1 - \sqrt{\rho})$.
 \end{theorem}
 
-The two thresholds --- the \emph{unique decoding} radius
-$\tfrac{1-\rho}{2}$ and the \emph{Johnson} radius $1 - \sqrt{\rho}$ ---
+\begin{example}
+\label{ex:johnson}
+For rate $\rho = 1/2$, the unique decoding radius is
+$\tfrac{1-\rho}{2} = 0.25$, while the Johnson radius is
+$1 - \sqrt{1/2} \approx 0.29$. Between these two values a received word
+may have a few codewords in its list, but the Johnson bound guarantees
+the number stays small, which is what the soundness analysis needs.
+\end{example}
+
+The two thresholds, the \emph{unique decoding} radius
+$\tfrac{1-\rho}{2}$ and the \emph{Johnson} radius $1 - \sqrt{\rho}$,
 are exactly where the soundness guarantees of FRI change form
 (\cref{ch:fri}).
 
@@ -234,6 +294,17 @@ evaluations of polynomials of degree less than $\rho|S|$:
   \deg(f) < \rho|S|\}.
 \]
 \end{definition}
+
+\begin{example}
+\label{ex:rs_code}
+Take $\F_7$, evaluation set $S = \{1,2,3,4,5,6\}$, and rate
+$\rho = 1/3$, so codewords are evaluations of polynomials of degree
+less than $\rho|S| = 2$, that is, lines $a + bX$. The polynomial
+$f(X) = 2 + 3X$ gives the codeword
+$(f(1),\ldots,f(6)) = (5, 1, 4, 0, 3, 6)$. Any two distinct lines agree
+in at most one point, so their codewords differ in at least five of the
+six positions.
+\end{example}
 
 Each codeword is the evaluation of a polynomial of degree less than
 $\rho|S|$ on all points of $S$. The code has minimum distance
@@ -266,6 +337,14 @@ $\delta$-\emph{close} to $C$ if $\Delta(u, C) \leq \delta$, and
 $\delta$-\emph{far} if $\Delta(u, C) > \delta$.
 \end{definition}
 
+\begin{example}
+\label{ex:hamming}
+The codeword $u = (5,1,4,0,3,6)$ of \cref{ex:rs_code} and the corrupted
+word $v = (5,1,4,2,3,6)$ differ in exactly one of six positions, so
+$\Delta(u, v) = 1/6$. If every genuine codeword differs from $v$ in at
+least this many positions, then $v$ is $\tfrac16$-far from the code.
+\end{example}
+
 The FRI protocol tests proximity to a Reed-Solomon codeword. As stated
 in~\cite[Section~2.1]{BBHR18}, the verifier's task is to distinguish
 between the case that $f \in \RS[\F, S, \rho]$ and the case that $f$
@@ -284,6 +363,15 @@ $H : \{0,1\}^* \to \{0,1\}^\lambda$ such that no efficient algorithm
 can find distinct inputs $x \neq x'$ with $H(x) = H(x')$, except
 with negligible probability.
 \end{definition}
+
+\begin{example}
+\label{ex:hash}
+SHA-256 maps any input to a $256$-bit digest. Changing even one bit of
+the input produces an essentially unrelated digest, and no method is
+known to find two inputs with the same digest faster than the roughly
+$2^{128}$ tries of a birthday attack, which is what collision resistance
+requires.
+\end{example}
 
 Hash functions serve two roles in STARK systems: constructing Merkle
 trees for committing to polynomial evaluations, and deriving the
@@ -318,14 +406,37 @@ $H(n_{\mathrm{left}} \| n_{\mathrm{right}})$; and the root $r$ is a
 single digest that binds the entire sequence.
 \end{definition}
 
+\begin{example}
+\label{ex:merkle}
+For four values $(v_0, v_1, v_2, v_3)$ the tree has leaves
+$\ell_i = H(v_i)$, two internal nodes
+$H(\ell_0 \| \ell_1)$ and $H(\ell_2 \| \ell_3)$, and a root hashing the
+two. To prove $v_2$ sits at position $2$, the prover reveals $\ell_3$
+and $H(\ell_0\|\ell_1)$; the verifier recomputes the root from $v_2$ and
+these two siblings and checks it against the committed root
+(\cref{fig:merkle}).
+\end{example}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\textwidth]{images/merkle_tree.pdf}
+\caption{Verification of $v_2$ in a four-leaf Merkle tree. The prover
+reveals the \emph{authentication path} (the two siblings $\ell_3$ and
+$H(\ell_0\Vert\ell_1)$, in orange); the verifier recomputes the dashed
+nodes from $v_2$ up to the root and compares the result with the
+committed root. The greyed-out nodes are never revealed.}
+\label{fig:merkle}
+\end{figure}
+
 To prove that $v_i$ is the value at position $i$, the prover provides
 an \emph{authentication path}: the $\log_2(N)$ sibling hashes along
 the path from the leaf to the root. The verifier recomputes the root
 and accepts if it matches $r$. Verification requires $O(\log N)$ hash
 evaluations.
 
-In the BCS transformation~\cite{BCS16}, Merkle trees commit to the
-oracle messages of the IOP: the prover evaluates a polynomial on the
+In the BCS (Ben-Sasson--Chiesa--Spooner) transformation~\cite{BCS16},
+Merkle trees commit to the
+oracle messages of the interactive oracle proof (IOP, \cref{sec:iop}): the prover evaluates a polynomial on the
 FRI domain, builds a Merkle tree over the evaluations, and sends the
 root to the verifier.
 
@@ -345,26 +456,37 @@ Thaler~\cite{Thaler22}.
 % Thaler, Definition 3.1.
 \begin{definition}[Interactive Proof {\cite[Definition~3.1]{Thaler22}}]
 \label{def:interactive_proof}
-An \emph{interactive proof system} for a function $f$ is a pair
-$(\Prover, \Verifier)$ where $\Prover$ is a computationally unbounded
-prover and $\Verifier$ is a probabilistic polynomial-time verifier.
-The protocol proceeds in rounds, and must satisfy:
+An \emph{interactive proof system} for a language $\mathcal{L}$ is a
+pair $(\Prover, \Verifier)$ where $\Prover$ is a computationally
+unbounded prover and $\Verifier$ is a probabilistic polynomial-time
+verifier. The protocol proceeds in rounds, and must satisfy:
 \begin{itemize}
-  \item \textbf{Completeness.} For every input $x$,
+  \item \textbf{Completeness.} For every $x \in \mathcal{L}$,
     $\Pr[\Verifier \text{ accepts}] \geq 1 - \delta_c$.
-  \item \textbf{Soundness.} For every input $x$ and every cheating
-    prover $\Prover^*$ that sends a value $y \neq f(x)$,
+  \item \textbf{Soundness.} For every $x \notin \mathcal{L}$ and every
+    cheating prover $\Prover^*$,
     $\Pr[\Verifier \text{ accepts}] \leq \delta_s$.
 \end{itemize}
 \end{definition}
+
+\begin{example}
+\label{ex:interactive_proof}
+A classic interactive proof is for graph non-isomorphism. The verifier
+secretly picks one of two graphs, randomly relabels its vertices, and
+sends the result to the prover, who must say which graph it came from.
+If the graphs are non-isomorphic an unbounded prover always answers
+correctly; if they are isomorphic no prover can do better than
+guessing, so the verifier catches a false claim with probability
+$1/2$ per round.
+\end{example}
 
 
 \subsection{Interactive Arguments}
 \label{subsec:arguments}
 
-Relaxing the soundness of an interactive proof
-(\cref{def:interactive_proof}) to hold only against efficient provers
-yields a weaker but more flexible notion.
+Relaxing the soundness of an interactive proof to hold only against
+computationally efficient provers yields a weaker but more flexible
+notion.
 
 \begin{definition}[Interactive Argument {\cite[Section~3.2]{Thaler22}}]
 \label{def:argument}
@@ -374,10 +496,19 @@ hold against prover strategies that run in probabilistic polynomial
 time.
 \end{definition}
 
+\begin{example}
+\label{ex:argument}
+The FRI-based systems in this thesis are arguments, not proofs. Their
+soundness rests on the collision resistance of a hash function: a
+prover with unlimited time could find hash collisions and forge a
+convincing transcript, but a realistic polynomial-time prover cannot,
+so soundness holds against every efficient prover.
+\end{example}
+
 Both models share the same structure. In a \emph{public-coin} protocol,
 every verifier message is a uniformly random challenge, independent of
 the prover's messages, and the verifier's decision is a deterministic
-function of the \emph{transcript} --- the ordered sequence of messages
+function of the \emph{transcript}, the ordered sequence of messages
 and challenges. These are exactly the protocols to which the
 Fiat-Shamir transformation (\cref{subsec:fiat_shamir}) applies. An
 \emph{argument of knowledge} further requires an efficient extractor
@@ -426,12 +557,22 @@ $\pi_1, \ldots, \pi_k$ and outputs $\mathsf{accept}$ or
 $\mathsf{reject}$.
 \end{definition}
 
+\begin{example}
+\label{ex:iop}
+FRI is itself an IOP. In each round the prover's oracle is a committed
+codeword, and the verifier's challenge is a folding coefficient; at the
+end the verifier queries only a handful of positions of each oracle
+rather than reading the full codewords, which is what makes
+verification succinct.
+\end{example}
+
 The key difference from a standard interactive proof is that the
 verifier has \emph{oracle access} to the prover's messages: it reads
 only a small number of positions rather than the full message. This
 is what enables succinct verification.
 
-An IOP of \emph{proximity} (IOPP) is an IOP in which the verifier
+An IOP of \emph{proximity} (IOP of Proximity, IOPP) is an IOP in which
+the verifier
 tests whether the prover's initial oracle is close to a codeword of
 a specified code, rather than testing membership in a
 language~\cite{BBHR18}.
@@ -486,10 +627,19 @@ algorithms:
 The scheme must satisfy correctness and binding.
 \end{definition}
 
+\begin{example}
+\label{ex:pcs}
+A prover commits to a polynomial $f$ by sending a single value $C$.
+Later, asked for the value at a point $z$, it returns $v = f(z)$ with a
+proof $\pi$. The verifier checks $\pi$ against $C$, $z$, and $v$ without
+ever seeing $f$ itself; binding ensures the prover cannot open the same
+$C$ to two different values at the same $z$.
+\end{example}
+
 The STARK system implemented in this thesis uses a \emph{FRI-based
 PCS}~\cite{BBHR18}: a polynomial is committed via a Merkle tree over
 its low-degree extension, and evaluation proofs are constructed
 through the FRI low-degree testing protocol. This approach requires no
 trusted setup (transparent) and relies only on hash functions
 (post-quantum secure). The FRI protocol is described in detail in
-Chapter~\ref{ch:fri}.
+\cref{ch:fri}.
