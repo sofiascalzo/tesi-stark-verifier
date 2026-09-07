@@ -1,0 +1,156 @@
+\chapter{Interactive Oracle Proofs and the BCS Transformation}
+\label{ch:iop}
+
+The FRI protocol of \cref{ch:fri} is naturally expressed as an
+\emph{interactive oracle proof} (IOP): the prover sends oracles that the
+verifier queries at a few positions, rather than messages it reads in
+full. This chapter introduces the IOP model and the BCS transformation
+that compiles an IOP into a non-interactive argument by realising its
+oracles as Merkle commitments and its queries as commitment openings.
+Once this compiler is in place, the FRI protocol can be described purely
+in terms of oracles and queries, leaving the commitment machinery
+implicit.
+
+\section{Merkle Trees}
+\label{sec:merkle_trees}
+% ==================================================================
+
+\begin{definition}[Merkle Tree]
+\label{def:merkle}
+A \emph{Merkle tree} over a sequence $(v_0, v_1, \ldots, v_{N-1})$
+with $N = 2^k$ is a binary tree where each leaf stores the hash of one
+element, $\ell_i = H(v_i)$; each internal node stores the hash of the
+concatenation of its two children,
+$H(n_{\mathrm{left}} \| n_{\mathrm{right}})$; and the root $r$ is a
+single digest that binds the entire sequence.
+\end{definition}
+
+\begin{example}
+\label{ex:merkle}
+For four values $(v_0, v_1, v_2, v_3)$ the tree has leaves
+$\ell_i = H(v_i)$, two internal nodes
+$H(\ell_0 \| \ell_1)$ and $H(\ell_2 \| \ell_3)$, and a root hashing the
+two. To prove $v_2$ sits at position $2$, the prover reveals $\ell_3$
+and $H(\ell_0\|\ell_1)$; the verifier recomputes the root from $v_2$ and
+these two siblings and checks it against the committed root
+(\cref{fig:merkle}).
+\end{example}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\textwidth]{images/merkle_tree.pdf}
+\caption{Verification of $v_2$ in a four-leaf Merkle tree. The prover
+reveals the \emph{authentication path} (the two siblings $\ell_3$ and
+$H(\ell_0\Vert\ell_1)$, in orange); the verifier recomputes the dashed
+nodes from $v_2$ up to the root and compares the result with the
+committed root. The greyed-out nodes are never revealed.}
+\label{fig:merkle}
+\end{figure}
+
+To prove that $v_i$ is the value at position $i$, the prover provides
+an \emph{authentication path}: the $\log_2(N)$ sibling hashes along
+the path from the leaf to the root. The verifier recomputes the root
+and accepts if it matches $r$. Verification requires $O(\log N)$ hash
+evaluations.
+
+In the BCS (Ben-Sasson--Chiesa--Spooner) transformation~\cite{BCS16},
+Merkle trees commit to the
+oracle messages of the interactive oracle proof (IOP, \cref{sec:iop}): the prover evaluates a polynomial on the
+FRI domain, builds a Merkle tree over the evaluations, and sends the
+root to the verifier.
+
+
+% ==================================================================
+
+
+\section{Interactive Oracle Proofs}
+\label{sec:iop}
+% ==================================================================
+
+% BCS16, Definition 2.2.
+\begin{definition}[Interactive Oracle Proof
+  {\cite[Definition~2.2]{BCS16}}]
+\label{def:iop}
+An \emph{Interactive Oracle Proof} (IOP) for a language $\mathcal{L}$
+is an interactive protocol between a prover $\Prover$ and a verifier
+$\Verifier$ that proceeds in rounds. In each round:
+\begin{enumerate}
+  \item the prover sends an \emph{oracle message} $\pi_i$ (a function
+    that the verifier may query at chosen positions);
+  \item the verifier sends a random challenge $r_i$.
+\end{enumerate}
+After $k$ rounds, the verifier makes a bounded number of queries to
+$\pi_1, \ldots, \pi_k$ and outputs $\mathsf{accept}$ or
+$\mathsf{reject}$.
+\end{definition}
+
+\begin{example}
+\label{ex:iop}
+FRI is itself an IOP. In each round the prover's oracle is a codeword,
+and the verifier's challenge is a folding coefficient; at the end the
+verifier queries only a handful of positions of each oracle rather than
+reading the full codewords, which is what makes verification succinct.
+The oracles are treated abstractly here; their concrete realisation as
+Merkle commitments is deferred to the BCS transformation.
+\end{example}
+
+The key difference from a standard interactive proof is that the
+verifier has \emph{oracle access} to the prover's messages: rather than
+receiving each message in full, it may query a small number of chosen
+positions of $\pi_i$. The oracle is an abstraction: it fixes the
+message in advance, so that every query is answered consistently, but
+says nothing about how this is realised. Making the oracles concrete is
+the job of the BCS transformation of \cref{sec:bcs}, after which we can
+reason about FRI purely in terms of oracles and queries, without
+committing to any particular implementation of them.
+
+An IOP of \emph{proximity} (IOPP) is an IOP in which the verifier tests
+whether the prover's initial oracle is close to a codeword of a
+specified code, rather than testing membership in a
+language~\cite{BBHR18}. FRI, described in \cref{ch:fri}, is an IOPP for
+Reed-Solomon codes.
+
+
+% ==================================================================
+\section{The BCS Transformation}
+\label{sec:bcs}
+% ==================================================================
+
+The IOP model of \cref{sec:iop} leaves two things abstract: the oracle
+messages, which the verifier can query but not read in full, and the
+interaction, which requires the verifier to send live random challenges.
+The BCS transformation~\cite{BCS16} removes both, compiling any
+public-coin IOP into a non-interactive argument in the random oracle
+model. It does so by realising each abstract ingredient with a concrete
+cryptographic one.
+
+\begin{itemize}
+  \item \textbf{Oracles become commitments.} Each oracle message
+    $\pi_i$ is replaced by a \emph{vector commitment} to its values: the
+    prover builds a Merkle tree (\cref{sec:merkle_trees}) over $\pi_i$
+    and sends only the root. The binding property of the commitment
+    plays the role the oracle played in the IOP, fixing the message so
+    that it cannot be changed after the fact.
+  \item \textbf{Queries become openings.} When the verifier queries
+    position $j$ of $\pi_i$, the prover answers with the value together
+    with its Merkle authentication path, and the verifier checks the
+    path against the committed root. An opening that verifies is exactly
+    a consistent answer to an oracle query.
+  \item \textbf{Challenges become Fiat-Shamir outputs.} Each verifier
+    challenge is derived by hashing the transcript so far
+    (\cref{subsec:fiat_shamir}), so no live interaction is needed and
+    the whole exchange becomes a single message.
+\end{itemize}
+
+The result is a non-interactive argument of knowledge in the random
+oracle model. Because of this compiler, once an IOP is specified we may
+describe it purely at the level of oracles and queries: it is enough to
+say that the prover sends the oracle for a purported codeword and that
+the verifier queries it at chosen positions, with the understanding that
+the oracles are Merkle vector commitments and the queries their
+openings. We adopt exactly this style in \cref{ch:fri}, and note there
+that the resulting FRI IOP is compiled into a non-interactive argument
+through the BCS transformation described here.
+
+
+% ==================================================================

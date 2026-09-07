@@ -24,6 +24,20 @@
 \theoremstyle{remark}
 \newtheorem{remark}{Remark}[chapter]
 
+% cleveref lowercases \cref names by default (\Cref capitalizes); we want
+% \cref itself always capitalized, so override the names it uses.
+\crefname{chapter}{Chapter}{Chapters}
+\crefname{section}{Section}{Sections}
+\crefname{subsection}{Subsection}{Subsections}
+\crefname{definition}{Definition}{Definitions}
+\crefname{example}{Example}{Examples}
+\crefname{theorem}{Theorem}{Theorems}
+\crefname{proposition}{Proposition}{Propositions}
+\crefname{lemma}{Lemma}{Lemmas}
+\crefname{remark}{Remark}{Remarks}
+\crefname{equation}{Equation}{Equations}
+\crefname{figure}{Figure}{Figures}
+
 
 \newcommand{\F}{\mathbb{F}}                % campo generico
 \newcommand{\Fp}{\mathbb{F}_p}             % campo primo
@@ -63,8 +77,8 @@
     {\Large Bachelor's thesis \par}
     \vspace{2cm}
 
-    {\Huge\bfseries **here title**\\[0.3cm]
-    **here title** \par}
+    {\Huge\bfseries A FRI-Based\\[0.3cm]
+    Polynomial Commitment Scheme\par}
     \vspace{3cm}
 
     \begin{minipage}[t]{0.48\textwidth}
@@ -95,9 +109,8 @@
 
 \input{chapters/1_introduction}
 \input{chapters/2_background}
-\input{chapters/3_fri}
-\input{chapters/4_pcs}
-\input{chapters/5_conclusions}
+\input{chapters/3_iop_pcs}
+\input{chapters/4_fri}
 
 \printbibliography[title={Bibliography}]
 \addcontentsline{toc}{chapter}{Bibliography}

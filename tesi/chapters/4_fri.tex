@@ -151,9 +151,9 @@ i.e.\ the group $\langle\omega\rangle$ shifted by the offset $g$. The
 codeword committed by the prover is $\bigl(f(g\omega^j)\bigr)_{j=0}^{N-1}$,
 computed by scaling the $i$-th coefficient of $f$ by $g^i$ and applying
 the NTT (\cref{subsec:ntt,subsec:lde}). In our implementation $\omega$
-and $g$ are returned by \texttt{two\_adic\_generator(k)} and
-\texttt{two\_adic\_generator(k+1)} respectively, and the scaled NTT is
-performed by \texttt{coset\_lde}.
+and $g$ are two-power roots of unity obtained from the fixed generator
+$\gamma$, and the codeword is obtained by the scaled NTT of
+\cref{subsec:lde}.
 
 Three properties follow, and together they justify the folding step.
  
@@ -199,9 +199,8 @@ therefore updates the domain simply by squaring both parameters,
 g \leftarrow g^2, \qquad \omega \leftarrow \omega^2,
 \end{equation}
 %
-which in our implementation is the update
-\texttt{offset = offset*offset}, \texttt{omega = omega*omega} applied
-at the end of each layer. The requirements of
+that is, the two domain parameters are squared at the end of each
+layer. The requirements of
 \cref{subsec:domain_requirements} are preserved at every level, as long
 as the subgroup order remains even.
 
@@ -364,11 +363,8 @@ One round thus halves two things at once: the degree bound, by
 \cref{def:fold}, and the domain size, by \cref{prop:domain}. The rate
 $\rho$ stays the same, so the folded codeword is again a Reed-Solomon
 codeword of the same rate, which is what lets the next round repeat the
-identical step. The prover keeps folding until the codeword reaches a
-fixed target length, at which point it sends the remaining layer
-directly; in our implementation this target is the parameter
-\texttt{final\_poly\_len}, and the commit phase folds while the codeword
-is longer than \texttt{final\_poly\_len}.
+identical step. The prover keeps folding until the degree is small enough to send the
+remaining polynomial directly.
 
 % alpha is sampled from F_{p^4} by the challenger; from round 0 onwards
 % the codeword entries are extension field elements.
@@ -437,30 +433,28 @@ repeats the same three actions at every round: commit, receive a
 challenge, fold.
 
 \begin{enumerate}
-  \item \textbf{Commit.} Build a Merkle tree over the current codeword
-    and send its root. This binds the prover to that exact codeword: any
-    later opening must be consistent with the root.
+  \item \textbf{Commit.} Send the oracle for the current codeword. This
+    binds the prover to that exact codeword: every later query must be
+    answered consistently with it.
   \item \textbf{Challenge.} Obtain the folding challenge $\alpha_r$ from
-    the verifier (in the non-interactive setting, from the transcript;
-    see \cref{sec:fri_fiatshamir}).
+    the verifier (once made non-interactive by the BCS transformation of
+    \cref{sec:bcs}, this challenge is derived from the transcript).
   \item \textbf{Fold.} Apply \cref{eq:fold_evaluations} with $\alpha_r$
     to halve the codeword, and square the two domain parameters
     (\cref{eq:domain_update}) to move to $D_{r+1}$.
 \end{enumerate}
 
-The loop stops once the codeword has shrunk to the target length
-$\ell = \texttt{final\_poly\_len}$, at which point the prover sends the
-remaining layer directly. The number of rounds is therefore
-$\log_2(N/\ell)$.
+The process stops once the codeword has shrunk to a short final layer,
+which the prover sends directly. The number of rounds is
+$\log_2 N$ down to a constant, or $\log_2(N/\ell)$ if the prover stops
+at a final layer of length $\ell$.
 
-In our implementation these steps are the body of \texttt{commit\_phase}:
-the codeword is produced by \texttt{coset\_lde}, each root is committed
-with a \texttt{MerkleTree} over \texttt{sha256} of the entries, the
-challenge is drawn by \texttt{sample\_ext\_field}, and \texttt{fold}
-performs the reduction. For the running example, with $f$ of length $8$
-and blowup $2$, so $N = 16$ and $\ell = 2$, the loop runs
-$\log_2(16/2) = 3$ times, producing three Merkle roots and a final layer
-of two elements.
+In the IOP the prover sends, at each round, the oracle for the current
+codeword, and the verifier replies with the folding challenge; the
+concrete realisation of these oracles as commitments follows the BCS
+transformation of \cref{sec:bcs}. For a polynomial of length $8$ with
+blowup $2$, so $N = 16$, the process runs $\log_2 N = 3$ rounds down to
+a constant final layer.
 
 
 \subsection{Query Phase}
@@ -488,10 +482,10 @@ round is then $\mathrm{idx} \leftarrow \mathrm{lo}$, so one random choice
 in the first layer determines the whole chain of positions down to the
 final layer.
 
-This is realised by \texttt{query\_phase}: the verifier samples
-\texttt{num\_queries} indices in the range $[0, N/2)$, and for each one
-walks the rounds, opening the two Merkle paths per layer. Each query thus
-costs one pair of openings per round, that is, $\log_2(N/\ell)$ pairs.
+In IOP terms, the verifier samples a number of indices in $[0, N/2)$
+and, for each one, queries the two oracle positions per layer needed to
+recompute one fold. Each query thus costs one pair of oracle queries per
+round.
 
 
 \subsection{Verification and the Colinearity Check}
@@ -537,116 +531,11 @@ such local relation per layer; a codeword far from low degree cannot
 satisfy all of them at once, so a handful of random queries suffices to
 catch a cheating prover.
 
-In our implementation this is \texttt{fri\_verify}: it rebuilds the
-$\alpha_r$ from the transcript, replays the two \texttt{assert}s on the
-round count and final-layer length, re-derives the query indices, and for
-each query checks the two Merkle paths with \texttt{verify\_proof} and
-the colinearity relation of \cref{eq:colinearity} against either the next
-opened value or \texttt{final\_poly}.
-
-%-------------------------------------------------------------
-
-\section{Fiat-Shamir and the Challenger}
-\label{sec:fri_fiatshamir}
-
-The protocol of \cref{sec:fri_protocol} is interactive: at each round the
-prover commits and the verifier answers with a random challenge
-$\alpha_r$. To turn it into a proof that can be written down once and
-checked offline, the interaction is removed with the Fiat-Shamir
-transformation (\cref{subsec:fiat_shamir}): instead of waiting for the
-verifier, the prover derives each challenge itself, by hashing everything
-it has sent so far. The verifier, holding the same transcript, recomputes
-the identical challenges and so can replay every check.
-
-The component that maintains this transcript and produces the challenges
-is the \emph{challenger}. This section describes what it must guarantee
-(\cref{subsec:transcript}) and how our implementation realises it with a
-duplex sponge built on Keccak (\cref{subsec:sponge}).
-
-
-\subsection{The Transcript and its Ordering}
-\label{subsec:transcript}
-
-A challenge is safe only if it depends on everything the prover has
-committed up to that point. If the prover could choose a Merkle root
-\emph{after} seeing the challenge that will be applied to it, it could
-search for a root that makes a dishonest fold pass the colinearity check.
-Binding each challenge to the full prior transcript removes this freedom:
-by the time $\alpha_r$ is fixed, the root of layer $r$ is already
-absorbed and can no longer be changed.
-
-Concretely, the challenger alternates two operations. It \emph{absorbs}
-the prover's messages, updating an internal state, and it \emph{squeezes}
-that state to produce challenges. During the commit phase the prover
-absorbs the parameters, then, for each round, absorbs the Merkle root and
-squeezes the folding challenge $\alpha_r$; after the last fold it absorbs
-the final layer. The query indices are squeezed once the whole commit
-transcript is fixed.
-
-The single rule that makes this sound is that the verifier must reproduce
-the \emph{same operations in the same order}. Our \texttt{fri\_verify}
-does exactly this: it absorbs each root and squeezes each $\alpha_r$ in
-the same sequence as the prover, absorbs the final layer, and only then
-squeezes the query indices with \texttt{sample\_indices}. Any mismatch in
-order would yield different challenges and reject an honest proof.
-
-
-\subsection{The Duplex Sponge over Keccak}
-\label{subsec:sponge}
-
-The absorb and squeeze operations must come from a construction where
-writing to the transcript and reading from it are genuinely distinct.
-Chiesa and Orr\`{u}~\cite{CO25} show that the \emph{duplex sponge} is such
-a construction and that the Fiat-Shamir transformation built on it
-preserves the soundness of the underlying interactive protocol. A sponge
-keeps a state split into two parts: a public \emph{rate}, into which data
-is absorbed and from which output is squeezed, and a hidden
-\emph{capacity}, never exposed directly, which carries the security of
-the construction. Absorbing and squeezing are separate operations on the
-state, so there is no ambiguity between the prover writing a message and
-the verifier reading a challenge, which is the property a Merkle-Damg\r{a}rd
-hash such as SHA-256 does not cleanly provide.
-
-Our challenger instantiates this over the Keccak-$f$[1600] permutation.
-The state is $1600$ bits, viewed as $25$ lanes of $64$ bits; the first
-$17$ lanes ($136$ bytes) are the rate and the remaining $8$ lanes
-($64$ bytes) are the capacity. Absorbing XORs each byte into the rate and
-applies the permutation whenever the rate fills; squeezing reads bytes
-back out of the rate, permuting again when it is exhausted. The switch
-from absorbing to squeezing is marked by the standard Keccak padding.
-
-Two kinds of challenge are drawn from the squeezed bytes:
-
-\begin{itemize}
-  \item The folding challenges $\alpha_r$ are elements of the quartic
-    extension $\Fpk$ (\cref{rem:ext_field_fold}). Each is built by
-    squeezing $16$ bytes and reading four base-field coefficients from
-    them, one per $32$-bit word. This is \texttt{sample\_ext\_field}.
-  \item The query indices are integers in $[0, N/2)$, each obtained by
-    squeezing bytes and reducing modulo the domain size. This is
-    \texttt{sample\_indices}.
-\end{itemize}
-
-The whole permutation is implemented from scratch in \texttt{keccak.py},
-so the challenger depends on no external cryptographic library. This
-follows the design of the reference implementation \texttt{spongefish}
-that accompanies~\cite{CO25}, and keeps the trusted computing base of the
-system limited to the Keccak permutation and the SHA-256 used for the
-Merkle trees (\cref{sec:hash_functions}).
-
-\begin{remark}[Grinding]
-\label{rem:grinding}
-A proof-of-work step, or \emph{grinding}, is often added to the
-transcript: before sampling the query indices the prover must find a
-nonce whose hash has a prescribed number of leading zeros, which raises a
-cheating prover's cost by a fixed number of bits. Our implementation
-reserves a parameter for this (\texttt{proof\_of\_work\_bits}) but leaves
-the step disabled, so it contributes no additional security in the
-configuration we evaluate; we return to its effect on the security level
-in \cref{sec:fri_parameters}.
-\end{remark}
-
-%-----------------------------------------------------------------------
+In IOP terms the verifier reconstructs the challenges from the
+transcript, checks that each queried oracle answer is consistent (which,
+after compilation, means checking a commitment opening), and verifies the
+colinearity relation \cref{eq:colinearity} at every queried position of
+every layer.
 
 \section{Soundness}
 \label{sec:fri_soundness}
@@ -800,8 +689,8 @@ $\delta = 1/2$, and $s = 20$ queries. One query misses with probability
 $1/2$, so twenty independent queries all miss with probability
 $(1/2)^{20} \approx 10^{-6}$, about $20$ bits of security from the query
 phase. A smaller rate raises the detection probability per query and so
-buys more bits each; \cref{sec:fri_parameters} works this trade-off out
-for the parameters we use.
+buys more bits each. The concrete parameters used in this work, and the
+resulting security level, are discussed in \cref{ch:implementation}.
 \end{example}
 
 
@@ -816,83 +705,3 @@ the same security. That regime is attractive for efficiency but unproven,
 and recent work has cast doubt on the strongest such conjectures. We
 therefore rely only on the provable Johnson-radius guarantee and leave the
 capacity regime out of scope.
-
-%----------------------------------------------------------------------------
-
-\section{Parameter Selection}
-\label{sec:fri_parameters}
-
-The soundness bound of \cref{thm:rbr} turns the choice of parameters
-into a choice of security level. This section reads that bound in the
-provable Johnson regime and reports the parameters used in our
-implementation, contrasting them with the values a production system
-would use.
-
-Recall the two error terms. The folding term is
-$\tfrac{r}{|\mathbb{K}|}\cdot\mathrm{poly}(|D|)$ and depends on the size
-of the challenge field; the query term is $(1-\delta)^{s}$ and depends
-on the number of queries $s$ and the distance $\delta$. Since we sample
-challenges from the quartic extension $\Fpk$, with
-$|\mathbb{K}| = p^4 \approx 2^{124}$, the folding term is at most about
-$2^{-122}$ for the round counts we use and is never the bottleneck. The
-security level is therefore set by the query term.
-
-In the provable regime the distance is bounded by the Johnson radius
-$\delta < 1 - \sqrt{\rho}$ (\cref{thm:johnson}). Each query then
-contributes
-%
-\begin{equation}
-\label{eq:bits_per_query}
--\log_2(1-\delta) \;=\; \tfrac{1}{2}\log_2(1/\rho)
-\end{equation}
-%
-bits of security, so $s$ queries give $\tfrac{s}{2}\log_2(1/\rho)$ bits.
-The rate $\rho$ thus controls how much each query is worth: a smaller
-rate (a larger blowup factor) buys more bits per query, at the cost of a
-larger evaluation domain and more prover work.
-
-\paragraph{Parameters used in this work.}
-Our configuration is the one fixed in the test harness:
-%
-\[
-\texttt{log\_blowup} = 1,\quad
-\texttt{num\_queries} = 20,\quad
-\texttt{proof\_of\_work\_bits} = 0,\quad
-\texttt{final\_poly\_len} = 2 .
-\]
-%
-This gives a rate $\rho = 1/2$, so by \cref{eq:bits_per_query} each query
-is worth $\tfrac12\log_2 2 = 0.5$ bits, and $20$ queries provide about
-$10$ bits of provable security, with no grinding. This is deliberately a
-\emph{test} configuration, chosen so that proofs are small and fast to
-generate while exercising every part of the protocol; it is not a
-production security level.
-
-\paragraph{Reaching a production level.}
-Two independent knobs raise the security level. Lowering the rate
-increases the bits per query: at $\rho = 1/8$ each query is worth
-$1.5$ bits, and at $\rho = 1/16$ it is worth $2$ bits. Adding grinding
-of $g$ bits (\cref{rem:grinding}) contributes a further $g$ bits at
-negligible verifier cost. A typical production target of $100$ bits is
-reached, for example, with a blowup of $16$, around $40$ queries, and
-$20$ grinding bits. The following table summarises the trade-off.
-
-\begin{center}
-\begin{tabular}{lcccc}
-\hline
- & blowup & $\rho$ & bits/query & queries for $100$ bits \\
-\hline
-This work (test) & $2$  & $1/2$  & $0.5$ & n/a \\
-Moderate  & $8$  & $1/8$  & $1.5$ & $\approx 54$ \\
-Aggressive  & $16$ & $1/16$ & $2.0$ & $\approx 40$ \\
-\hline
-\end{tabular}
-\end{center}
-
-The last column assumes no grinding; adding $g$ grinding bits reduces the
-required queries by $g/(\text{bits per query})$. The table makes the
-central trade-off explicit: a larger blowup makes each query more
-powerful, so fewer are needed, but it enlarges the committed codeword and
-so raises the prover's cost and the proof size. Our test parameters sit
-at the cheap, low-security end of this spectrum, which is appropriate for
-validating correctness but would be raised for any real deployment.
