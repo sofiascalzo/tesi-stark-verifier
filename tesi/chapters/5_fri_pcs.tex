@@ -1,0 +1,178 @@
+\chapter{FRI as a Polynomial Commitment Scheme}
+\label{ch:pcs}
+
+The FRI protocol of \cref{ch:fri} tests one thing: that a committed
+function is close to a low-degree polynomial. On its own this is a
+proximity test, not a commitment scheme. A polynomial commitment scheme
+(\cref{sec:pcs}) must do more: it must let the prover commit to a
+polynomial $f$ and later prove, at any point $z$ chosen by the verifier,
+that $f(z) = v$ for a claimed value $v$. This chapter shows how the
+proximity test of FRI is turned into such an evaluation proof through a
+single algebraic idea, the quotient technique, and how the four
+algorithms of a polynomial commitment scheme are realised on top of it.
+
+
+% ==================================================================
+\section{From Low-Degree Testing to Evaluation Proofs}
+\label{sec:ldt_to_eval}
+% ==================================================================
+
+Recall the gap between what FRI provides and what a commitment scheme
+needs. FRI convinces the verifier that the committed codeword is close to
+some polynomial of degree less than $d$, but says nothing about the value
+of that polynomial at any particular point. An evaluation proof is the
+opposite kind of statement: it fixes a point $z$ and a value $v$ and
+asserts the single equality $f(z) = v$.
+
+The bridge between the two is the observation that an evaluation claim can
+be rephrased as a low-degree claim about a different polynomial. If
+$f(z) = v$, then $f(X) - v$ has a root at $z$, so it is divisible by
+$X - z$ and the quotient is again a polynomial. If instead
+$f(z) \neq v$, the division leaves a remainder and the quotient is not a
+polynomial at all. Testing whether that quotient is a low-degree
+polynomial, which is exactly what FRI does, therefore tests whether the
+evaluation claim is true. The next section makes this precise.
+
+
+% ==================================================================
+\section{The Quotient Technique}
+\label{sec:quotient}
+% ==================================================================
+
+Let $f$ be a polynomial of degree less than $d$, let $z$ be an evaluation
+point, and let $v$ be a claimed value. Define the \emph{quotient}
+%
+\begin{equation}
+\label{eq:quotient}
+q(X) = \frac{f(X) - v}{X - z}.
+\end{equation}
+%
+The whole construction rests on the following elementary fact.
+
+\begin{proposition}
+\label{prop:quotient}
+The quotient $q(X)$ of \cref{eq:quotient} is a polynomial of degree less
+than $d - 1$ if and only if $f(z) = v$.
+\end{proposition}
+
+\begin{proof}
+By the factor theorem, $X - z$ divides a polynomial $g$ exactly when
+$g(z) = 0$. Applying this to $g(X) = f(X) - v$: if $f(z) = v$ then
+$g(z) = 0$, so $X - z$ divides $g$ and $q = g/(X-z)$ is a polynomial, of
+degree one less than $g$, hence less than $d - 1$. Conversely, if
+$f(z) \neq v$ then $g(z) \neq 0$, the division of $g$ by $X - z$ leaves a
+nonzero remainder, and $q$ is not a polynomial.
+\end{proof}
+
+The proposition is what lets FRI certify an evaluation. The prover forms
+the quotient $q$ and runs FRI to show that it is close to a polynomial of
+degree less than $d - 1$. If the claim $f(z) = v$ is true, $q$ is a
+genuine low-degree polynomial and the test passes. If the claim is false,
+$q$ is not a polynomial: it has a pole at $z$ and is far from every
+low-degree codeword, so FRI rejects with high probability by the
+soundness of \cref{sec:fri_soundness}. The evaluation proof is thus a
+FRI proof about the quotient rather than about $f$ itself.
+
+For the quotient to be well defined on the evaluation domain, the point
+$z$ must lie outside that domain: if $z$ were one of the domain points,
+the factor $X - z$ would vanish there and $q$ could not be evaluated at
+that point. Evaluation points are therefore taken outside the domain,
+which is not a restriction in practice since the domain is a small
+structured subset of the field.
+
+\begin{example}
+\label{ex:quotient}
+Take $f(X) = 1 + 2X + 3X^2 + 4X^3$ over $\F_{17}$ and the point $z = 5$,
+for which $f(5) = 8$. With the correct value $v = 8$,
+%
+\[
+f(X) - 8 = 4X^3 + 3X^2 + 2X + 10 = (X - 5)(4X^2 + 6X + 15),
+\]
+%
+so $q(X) = 4X^2 + 6X + 15$ is a polynomial of degree $2 < 3$, and FRI on
+$q$ succeeds. If instead the prover claims the wrong value $v' = 9$, then
+$f(X) - 9$ is not divisible by $X - 5$: the division leaves a nonzero
+remainder, the quotient is not a polynomial, and FRI on it fails.
+\end{example}
+
+
+% ==================================================================
+\section{Commit, Open, and Verify}
+\label{sec:commit_open_verify}
+% ==================================================================
+
+The quotient technique supplies the evaluation proof; wrapping it with a
+commitment to $f$ gives the four algorithms of a polynomial commitment
+scheme (\cref{sec:pcs}). Because the scheme is built on FRI, it is
+transparent: the setup consists only of public parameters, with no
+trusted secret.
+
+\paragraph{$\Setup$.} Fix the public parameters: the field, the
+evaluation domain $D$ (\cref{sec:fri_domain}), the rate $\rho$, and the
+degree bound $d$. No trusted setup is required, since these are public
+and verifiable.
+
+\paragraph{$\Commit$.} To commit to $f$, evaluate it on the domain $D$ by
+the low-degree extension and send the oracle for the resulting codeword,
+that is, its Merkle commitment (\cref{ch:iop}). The commitment $C$ is the
+Merkle root.
+
+\paragraph{$\Open$.} To prove $f(z) = v$, the prover forms the quotient
+$q$ of \cref{eq:quotient}, commits to its codeword, and produces a FRI
+proof that $q$ has degree less than $d - 1$. The opening consists of the
+claimed value $v$, together with this FRI proof and the query openings
+that tie $q$ back to the committed $f$ at the sampled positions.
+
+\paragraph{$\Verify$.} The verifier checks the FRI proof for $q$ and, at
+each queried position $x$, checks the algebraic relation that links the
+two codewords,
+%
+\begin{equation}
+\label{eq:quotient_check}
+q(x) \cdot (x - z) = f(x) - v,
+\end{equation}
+%
+using the opened values of $f$ and $q$ at $x$ against their committed
+roots. If the FRI proof verifies and \cref{eq:quotient_check} holds at
+every queried position, the verifier accepts $f(z) = v$.
+
+The soundness of the scheme follows from that of FRI. A prover who claims
+a false value $v \neq f(z)$ is forced, by \cref{prop:quotient}, to commit
+to a quotient that is not a low-degree polynomial; the FRI test on $q$
+then rejects except with the small probability of \cref{thm:rbr}. The
+consistency check \cref{eq:quotient_check} prevents the prover from
+committing to an unrelated low-degree polynomial in place of the true
+quotient, since that relation must hold at every queried point against
+the commitment to $f$.
+
+\begin{example}
+\label{ex:pcs_full}
+We follow the polynomial of \cref{ex:quotient},
+$f(X) = 1 + 2X + 3X^2 + 4X^3$ over $\F_{17}$, and use the evaluation
+domain $D = \{3, 10, 5, 11, 14, 7, 12, 6\}$ of \cref{ex:domain_f17}.
+Since the point $z = 5$ of \cref{ex:quotient} lies in $D$, for a full
+opening we take a point outside the domain, $z = 2$, with
+$v = f(2) = 15$.
+
+\emph{Commit.} The prover evaluates $f$ on $D$, giving the codeword
+$(6, 3, 8, 15, 16, 4, 8, 16)$, and sends its Merkle root as the
+commitment $C$.
+
+\emph{Open.} To prove $f(2) = 15$, the prover forms the quotient
+$q(X) = (f(X) - 15)/(X - 2) = 7 + 11X + 4X^2$, of degree $2 < 3$,
+evaluates it on $D$, and produces a FRI proof that $q$ is low-degree,
+opening $f$ and $q$ at the same query positions.
+
+\emph{Verify.} At each queried point the verifier checks
+\cref{eq:quotient_check}. For example, at $x = 10$ the opened values are
+$f(10) = 3$ and $q(10) = 7$, and indeed
+%
+\[
+q(10)\,(10 - 2) = 7 \cdot 8 = 5 = 3 - 15 = f(10) - v \pmod{17},
+\]
+%
+so the check passes. Had the prover claimed the wrong value
+$v' = 16$, the quotient $(f - 16)/(X - 2)$ would not be a polynomial,
+FRI would reject it as far from low degree, and the relation would fail:
+at $x = 10$ it would ask for $5 = 3 - 16 = 4$, which is false.
+\end{example}
