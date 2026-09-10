@@ -508,13 +508,25 @@ algorithms:
 The scheme must satisfy correctness and binding.
 \end{definition}
 
+ 
 \begin{example}
 \label{ex:pcs}
-A prover commits to a polynomial $f$ by sending a single value $C$.
-Later, asked for the value at a point $z$, it returns $v = f(z)$ with a
-proof $\pi$. The verifier checks $\pi$ against $C$, $z$, and $v$ without
-ever seeing $f$ itself; binding ensures the prover cannot open the same
-$C$ to two different values at the same $z$.
+Let $f(X) = 5 + 2X + 3X^2$ over $\F_{17}$. The prover first commits to
+$f$, producing a commitment $C$ that fixes the polynomial without
+revealing its coefficients. Later the verifier names a point, say
+$z = 4$, and asks for the value of $f$ there. The prover replies with
+$v = f(4) = 5 + 2\cdot 4 + 3\cdot 16 = 61 = 10 \pmod{17}$, together with
+a proof $\pi$.
+ 
+The proof $\pi$ convinces the verifier that $v = 10$ is the value at
+$z = 4$ of the exact polynomial committed in $C$, and not of some other
+polynomial the prover might substitute; the verifier becomes convinced
+of the single equality $f(4) = 10$ without ever seeing the coefficients
+of $f$. The binding property is what makes this meaningful: the prover
+cannot open the same commitment $C$ to two different values at the same
+point, so it could not also convince the verifier that $f(4) = 11$. How
+$\pi$ is actually built and checked, using the FRI protocol, is the
+subject of \cref{ch:pcs}.
 \end{example}
 
 The STARK system implemented in this thesis uses a \emph{FRI-based

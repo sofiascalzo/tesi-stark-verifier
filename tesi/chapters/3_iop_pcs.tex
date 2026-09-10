@@ -25,6 +25,12 @@ $H(n_{\mathrm{left}} \| n_{\mathrm{right}})$; and the root $r$ is a
 single digest that binds the entire sequence.
 \end{definition}
 
+To prove that $v_i$ is the value at position $i$, the prover provides
+an \emph{authentication path}: the $\log_2(N)$ sibling hashes along
+the path from the leaf to the root. The verifier recomputes the root
+and accepts if it matches $r$. Verification requires $O(\log N)$ hash
+evaluations.
+
 \begin{example}
 \label{ex:merkle}
 For four values $(v_0, v_1, v_2, v_3)$ the tree has leaves
@@ -46,12 +52,6 @@ nodes from $v_2$ up to the root and compares the result with the
 committed root. The greyed-out nodes are never revealed.}
 \label{fig:merkle}
 \end{figure}
-
-To prove that $v_i$ is the value at position $i$, the prover provides
-an \emph{authentication path}: the $\log_2(N)$ sibling hashes along
-the path from the leaf to the root. The verifier recomputes the root
-and accepts if it matches $r$. Verification requires $O(\log N)$ hash
-evaluations.
 
 In the BCS (Ben-Sasson--Chiesa--Spooner) transformation~\cite{BCS16},
 Merkle trees commit to the
