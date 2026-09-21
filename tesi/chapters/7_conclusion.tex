@@ -1,0 +1,29 @@
+\chapter{Conclusions}
+\label{ch:conclusions}
+
+This thesis presented a FRI-based polynomial commitment scheme over the
+BabyBear field, developed from its mathematical foundations to a
+complete, working implementation. Starting from finite fields and
+Reed-Solomon codes, we described the interactive oracle proof model and
+its compilation through the BCS transformation, the FRI protocol and its
+soundness, and the quotient technique that turns FRI into a full
+evaluation proof. Every component was implemented from scratch in
+Python, and the scheme was validated by a test suite covering both the
+low-degree test and the evaluation proof.
+
+The result is a compact and readable realisation of a transparent,
+hash-based commitment scheme, in which each part of the construction can
+be followed directly in the code.
+
+\section{Future Work}
+\label{sec:future_work}
+
+Several natural extensions remain. The proof-of-work grinding step,
+prepared for in the parameters but left as a stub, would raise the
+security level at negligible verifier cost. Beyond this, the polynomial
+commitment scheme is the key ingredient of a full STARK: adding an
+algebraic intermediate representation and the constraint machinery on
+top of it would turn the present system into a complete proof system for
+general computations. Finally, porting the implementation to a compiled
+language and adding the standard batching and low-level optimisations
+would bring its performance closer to that of production systems.

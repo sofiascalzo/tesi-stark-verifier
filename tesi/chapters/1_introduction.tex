@@ -1,1 +1,91 @@
+\chapter{Introduction}
+\label{ch:introduction}
 
+When a computation is delegated to a party we do not fully trust, we
+would like a way to check that it was performed correctly without
+redoing the work ourselves. Proof systems make this possible: a prover
+produces a short certificate that convinces a verifier of the
+correctness of a statement, and the verifier checks it far more cheaply
+than recomputing the statement from scratch. Over the last decade these
+systems have moved from theory to practice, underpinning scalable and
+privacy-preserving applications, and much of their machinery rests on a
+single building block, the \emph{polynomial commitment scheme}.
+
+These systems are no longer only a theoretical construction, and the
+polynomial commitment scheme is the component on which a great many of
+them are built. The most visible application is the scaling of
+blockchains through \emph{zk-rollups}: instead of having every node
+re-execute thousands of transactions, a single succinct proof attests
+that the whole batch was processed correctly, and the base chain only
+verifies that proof. StarkNet, a Layer-2 network on Ethereum, does
+exactly this using STARK proofs, which are built on top of the FRI
+protocol studied in this thesis; other systems such as zkSync and
+Polygon zkEVM follow the same idea. A second family of applications
+exploits the fact that a proof can reveal that a statement is true while
+hiding the data behind it: this enables privacy-preserving payments,
+identity and credential systems that prove a fact (for instance that a
+person is over a certain age) without disclosing the underlying document,
+and privacy-preserving analysis of sensitive data such as medical
+records. A third use is \emph{verifiable computation}, where an
+expensive calculation is delegated to an untrusted server that returns
+the result together with a proof of its correctness.
+
+FRI in particular has found uses beyond proving computations. A recent
+example is \emph{data availability sampling}~\cite{FRIDA}, where a light
+node of a blockchain, which does not store the block contents, wants to
+be sure that those contents are actually available in the network
+without downloading them in full. By probing only a few random positions
+of an encoded block, and checking them against a short commitment, the
+node becomes convinced that the whole block can be recovered. Hall-Andersen,
+Simkin, and Wagner show that FRI can be turned into exactly such a
+scheme, which illustrates how the same low-degree testing machinery
+studied in this thesis serves as a building block far beyond its original
+purpose. What all these applications share is the same core need: a way
+to commit to data and later prove statements about it, cheaply and
+reliably.
+
+A polynomial commitment scheme lets a prover commit to a polynomial with
+a short digest and later prove its value at any chosen point, without
+revealing the polynomial itself. Different schemes make different
+trade-offs. Some rely on a trusted setup or on elliptic-curve
+assumptions that are broken by quantum computers. The scheme studied in
+this thesis avoids both: it is built on FRI, the Fast Reed-Solomon
+Interactive Oracle Proof of Proximity, and needs only a hash function.
+It is therefore \emph{transparent}, requiring no trusted setup, and
+plausibly \emph{post-quantum}, since its security rests on hashing alone.
+
+\section{Contribution}
+\label{sec:contribution}
+
+This thesis builds such a scheme from the ground up, over the BabyBear
+prime field, and implements every part of it from scratch in Python
+without external cryptographic libraries. This includes the field
+arithmetic and its quartic extension, the Number Theoretic Transform,
+the Merkle commitments, a Keccak-based duplex-sponge challenger, and the
+FRI prover and verifier, on top of which the polynomial commitment
+scheme is realised through the quotient technique. The complete source code
+is publicly available at~\cite{thesisrepo}.
+
+Writing every component by hand is a deliberate choice. Production
+systems are written in compiled languages and layered with
+optimisations, batching, and low-level tricks that make them fast but
+hard to follow. The goal here is the opposite: to expose clearly how a
+transparent proof system is put together. A self-contained implementation
+makes each step inspectable and keeps the distance between the
+mathematics and the code as small as possible, at the natural cost of the
+raw performance a production implementation would reach.
+
+\section{Structure of the Thesis}
+\label{sec:structure}
+
+\Cref{ch:background} sets up the mathematical and cryptographic
+background: finite fields, polynomials and the Number Theoretic
+Transform, coding theory and Reed-Solomon codes, hash functions, proof
+systems, and polynomial commitment schemes. \Cref{ch:iop} introduces the
+interactive oracle proof model and the BCS transformation that compiles
+it into a non-interactive argument using Merkle commitments.
+\Cref{ch:fri} presents the FRI protocol, its folding operation, and its
+soundness. \Cref{ch:pcs} turns FRI into a polynomial commitment scheme
+through the quotient technique. \Cref{ch:implementation} describes the
+implementation, its cryptographic components, its optimisations, and the
+parameters and security level. \Cref{ch:conclusions} concludes.
