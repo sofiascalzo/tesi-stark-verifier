@@ -58,7 +58,8 @@ plausibly \emph{post-quantum}, since its security rests on hashing alone.
 \label{sec:contribution}
 
 This thesis builds such a scheme from the ground up, over the BabyBear
-prime field, and implements every part of it from scratch in Python
+prime field $\mathbb{F}_p$ with $p = 2^{31} - 2^{27} + 1 = 15 \cdot 2^{27} + 1 = 2013265921$,
+and implements every part of it from scratch in Python
 without external cryptographic libraries. This includes the field
 arithmetic and its quartic extension, the Number Theoretic Transform,
 the Merkle commitments, a Keccak-based duplex-sponge challenger, and the
@@ -66,7 +67,7 @@ FRI prover and verifier, on top of which the polynomial commitment
 scheme is realised through the quotient technique. The complete source code
 is publicly available at~\cite{thesisrepo}.
 
-Writing every component by hand is a deliberate choice. Production
+Writing every component from scratch is a deliberate choice. Production
 systems are written in compiled languages and layered with
 optimisations, batching, and low-level tricks that make them fast but
 hard to follow. The goal here is the opposite: to expose clearly how a
@@ -88,4 +89,5 @@ it into a non-interactive argument using Merkle commitments.
 soundness. \Cref{ch:pcs} turns FRI into a polynomial commitment scheme
 through the quotient technique. \Cref{ch:implementation} describes the
 implementation, its cryptographic components, its optimisations, and the
-parameters and security level. \Cref{ch:conclusions} concludes.
+parameters and security level. \Cref{ch:conclusions} draws some concluding 
+remarks.
