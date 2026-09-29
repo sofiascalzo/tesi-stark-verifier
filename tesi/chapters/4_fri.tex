@@ -60,10 +60,20 @@ rather than reading in full.
 \label{rem:proximity_not_membership}
 FRI establishes \emph{proximity}, not membership. A successful
 verification does not certify that the committed vector is exactly a
-Reed-Solomon codeword, only that it is close to one in relative
-Hamming distance. This distinction is central to the soundness
-analysis of the FRI protocol.
-\end{remark}  % citare soundess proof
+Reed-Solomon codeword, only that it is close to one in relative Hamming
+distance. This matches the promise problem RPT is stated as: the
+verifier must separate words that are codewords from words that are far
+from every codeword, and nothing is required in the intermediate range.
+Proximity is the strongest guarantee attainable, because a codeword and
+the same codeword altered in a single position differ in only one of
+$N$ places, and a verifier reading a sublinear number of positions
+almost never queries that place. It is also sufficient for the intended
+use: within the unique decoding radius, the radius $\tfrac{1-\rho}{2}$
+below which at most one codeword lies near any word, a vector close to
+the code determines a unique low-degree polynomial, which the polynomial
+commitment scheme of \cref{ch:pcs} uses in its place. This distinction
+is central to the soundness analysis of \cref{sec:fri_soundness}.
+\end{remark} % citare soundess proof
  
 
  
@@ -409,9 +419,9 @@ $2/4 = 1/2$.
 \section{The Protocol}
 \label{sec:fri_protocol}
 
-The folding operation of \cref{sec:fri_folding} is the engine; the
-protocol is what wraps it into an interaction between prover and
-verifier. It has two phases. In the \emph{commit phase} the prover folds
+\cref{sec:fri_folding} Section 4.3 defined the folding operation. 
+The protocol embeds it in an interaction between prover and verifier.
+It has two phases. In the \emph{commit phase} the prover folds
 the polynomial down to a short final layer, committing to each
 intermediate codeword with a Merkle tree so that it cannot change its
 mind later. In the \emph{query phase} the verifier picks a few random
@@ -601,8 +611,8 @@ positions.
 The round-by-round proof uses a sharper version, \emph{mutual} correlated
 agreement, introduced in the analysis of WHIR~\cite{WHIR24}. It requires
 that the set of positions where the combination agrees with the code is
-the \emph{same} set on which the two halves agree, not merely a related
-one. This equality of sets is what lets the argument repeat cleanly at
+the \emph{same} set on which the two halves agree. 
+This equality of sets is what lets the argument repeat cleanly at
 every round: the agreement pattern of one layer passes to the next
 without drift, so distance is tracked faithfully all the way down. This is
 why we use mutual correlated agreement rather than the older notion.
@@ -628,6 +638,7 @@ Johnson radius $1 - \sqrt{\rho}$. Then any cheating prover makes the
 verifier accept with probability at most
 %
 \[
+\varepsilon_{\mathrm{FRI}} \;=\;
 \underbrace{\frac{r}{|\mathbb{K}|}\cdot\mathrm{poly}(|D|)}
   _{\text{folding}}
 \;+\;
@@ -660,8 +671,12 @@ codewords on a common set large enough to make $f_i$ itself close, which
 contradicts the assumption. Hence only a few $\alpha_i$ are bad, a
 fraction of about $1/|\mathbb{K}|$ of the field. A union bound over the
 $r$ rounds gives the folding term. This is the only place the field size
-enters, and it is why $\mathbb{K}$ must be the large extension $\Fpk$: a
-challenge from the base field would make $1/|\mathbb{K}|$ far too large.
+enters, and it fixes a requirement on $\mathbb{K}$: the quantity
+$1/|\mathbb{K}|$ must be negligible, so $\mathbb{K}$ must be large enough
+in absolute terms. The base field is in general too small for this, and
+the challenges are therefore drawn from a sufficiently large extension.
+The concrete choice of extension is an implementation matter, discussed
+in \cref{ch:implementation}.
 
 \emph{The queries catch a doomed final layer} (\cite[Claim~5.3]{GMW25}).
 If every fold kept the state doomed, the final layer sent in the clear is
@@ -698,10 +713,13 @@ resulting security level, are discussed in \cref{ch:implementation}.
 \label{subsec:regimes}
 
 Everything above lives below the Johnson radius $1 - \sqrt{\rho}$, where
-mutual correlated agreement is proved. One can push further, up to the
-list-decoding \emph{capacity} $1 - \rho$, by \emph{conjecturing} that the
-same distance preservation still holds; this would allow fewer queries for
-the same security. That regime is attractive for efficiency but unproven,
-and recent work has cast doubt on the strongest such conjectures. We
-therefore rely only on the provable Johnson-radius guarantee and leave the
-capacity regime out of scope.
+mutual correlated agreement is proved. Pushing the analysis past this
+radius, towards the list-decoding \emph{capacity} $1 - \rho$, is an active
+line of research: recent work extends mutual correlated agreement beyond
+the Johnson radius for Reed-Solomon codes, narrowing the gap between what
+is provable and what was previously only conjectured, and the question is
+the subject of a dedicated open-problem effort~\cite{proximityprize}.
+Reaching capacity would allow fewer queries for the same security.In
+this thesis we rely only on the established Johnson-radius guarantee, and 
+leave the capacity regime out of scope.
+

@@ -20,9 +20,12 @@ algorithms of a polynomial commitment scheme are realised on top of it.
 Recall the gap between what FRI provides and what a commitment scheme
 needs. FRI convinces the verifier that the committed codeword is close to
 some polynomial of degree less than $d$, but says nothing about the value
-of that polynomial at any particular point. An evaluation proof is the
-opposite kind of statement: it fixes a point $z$ and a value $v$ and
-asserts the single equality $f(z) = v$.
+of that polynomial at any particular point. FRI
+asserts a global property: that the committed word is close to some
+low-degree polynomial, without naming it or any of its values, an
+evaluation proof fixes a specific point $z$ and a specific value $v$ and
+asserts the single local equality $f(z) = v$ for the committed
+polynomial.
 
 The bridge between the two is the observation that an evaluation claim can
 be rephrased as a low-degree claim about a different polynomial. If
@@ -64,21 +67,45 @@ $f(z) \neq v$ then $g(z) \neq 0$, the division of $g$ by $X - z$ leaves a
 nonzero remainder, and $q$ is not a polynomial.
 \end{proof}
 
-The proposition is what lets FRI certify an evaluation. The prover forms
-the quotient $q$ and runs FRI to show that it is close to a polynomial of
-degree less than $d - 1$. If the claim $f(z) = v$ is true, $q$ is a
-genuine low-degree polynomial and the test passes. If the claim is false,
-$q$ is not a polynomial: it has a pole at $z$ and is far from every
-low-degree codeword, so FRI rejects with high probability by the
-soundness of \cref{sec:fri_soundness}. The evaluation proof is thus a
-FRI proof about the quotient rather than about $f$ itself.
+\begin{remark}[Opening at several points]
+\label{rem:batch_open}
+The same idea proves several evaluations at once. To open $f$ at points
+$z_1, \ldots, z_k$ with claimed values $v_1, \ldots, v_k$, let $r$ be the
+unique polynomial of degree less than $k$ with $r(z_j) = v_j$ for all
+$j$, obtained by interpolation. Then $f(X) - r(X)$ vanishes at every
+$z_j$ exactly when all the claims hold, so
+%
+\[
+q(X) = \frac{f(X) - r(X)}{\prod_{j=1}^{k} (X - z_j)}
+\]
+%
+is a polynomial if and only if $f(z_j) = v_j$ for every $j$, and a single
+FRI proof on $q$ certifies all $k$ evaluations. The single-point case of
+\cref{eq:quotient} is $k = 1$, where $r$ is the constant $v$.
+\end{remark}
+
+
+The proposition reduces certifying an evaluation to a low-degree test.
+The prover forms the quotient $q$ and runs FRI on it. If the claim
+$f(z) = v$ holds, $q$ is a polynomial of degree less than $d - 1$ and FRI
+accepts. If the claim is false, $q$ has a pole at $z$ and its evaluation
+vector lies far from every low-degree codeword, so FRI rejects with high
+probability by the soundness of \cref{sec:fri_soundness}. The intuition
+is that a false value cannot be hidden: it turns the quotient from a
+low-degree polynomial into one whose distance from the code the FRI
+queries detect. The evaluation proof is therefore a FRI proof about the
+quotient rather than about $f$ itself.
 
 For the quotient to be well defined on the evaluation domain, the point
-$z$ must lie outside that domain: if $z$ were one of the domain points,
-the factor $X - z$ would vanish there and $q$ could not be evaluated at
-that point. Evaluation points are therefore taken outside the domain,
-which is not a restriction in practice since the domain is a small
-structured subset of the field.
+$z$ must lie outside that domain: if $z$ were a domain point, the factor
+$X - z$ would vanish there and $q$ could not be evaluated at that point.
+This is a genuine limitation of the scheme. A polynomial commitment
+scheme should open at any point of the field, whereas here the domain
+points are excluded, so the construction is a commitment that opens
+everywhere except on the domain. The gap is harmless in use: the domain
+is a small structured subset of the field, and the evaluation points that
+occur in practice, such as the random challenges drawn by an outer
+protocol, fall outside it with overwhelming probability.
 
 \begin{example}
 \label{ex:quotient}
