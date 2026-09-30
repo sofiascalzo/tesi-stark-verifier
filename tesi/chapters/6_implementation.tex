@@ -167,6 +167,10 @@ bits on top of the query term:
 \;+\; \underbrace{g}_{\text{from grinding}} .
 \end{equation}
 %
+Here $\lambda$ is the security level in bits, related to the soundness
+error $\varepsilon_{\mathrm{FRI}}$ of \cref{thm:rbr} by
+$\lambda = -\log_2 \varepsilon_{\mathrm{FRI}}$: each added bit halves the
+probability that a cheating prover is accepted.
 This optimisation is present in our implementation only as a stub, with an
 empty proof-of-work routine and the difficulty fixed to zero, so it adds
 nothing here ($g = 0$).
@@ -209,13 +213,21 @@ the proof size rather than the security level.
 
 \paragraph{Parameters used in this work.}
 The configuration evaluated here is
-%
-\[
-\texttt{log\_blowup} = 1,\quad
-\texttt{num\_queries} = 20,\quad
-\texttt{proof\_of\_work\_bits} = 0,\quad
-\texttt{final\_poly\_len} = 2 .
-\]
+\begin{table}[ht]
+\centering
+\begin{tabular}{lcl}
+\hline
+Parameter & Value & Meaning \\
+\hline
+\texttt{log\_blowup}         & $1$ & rate $\rho = 1/2$ \\
+\texttt{num\_queries}        & $20$ & number of query repetitions \\
+\texttt{proof\_of\_work\_bits} & $0$ & grinding disabled \\
+\texttt{final\_poly\_len}     & $2$ & early-stopping length \\
+\hline
+\end{tabular}
+\caption{Parameters of the evaluated configuration.}
+\label{tab:params}
+\end{table}
 %
 Here \texttt{final\_poly\_len} sets the early-stopping point and
 \texttt{proof\_of\_work\_bits} the grinding difficulty of
@@ -229,11 +241,12 @@ level.
 
 \paragraph{Reaching a production level.}
 The security level is raised by lowering the rate, which increases the
-bits per query: at $\rho = 1/8$ each query is worth $1.5$ bits, and at
-$\rho = 1/16$ it is worth $2$ bits. A typical production target of
-$100$ bits is reached, for example, with a blowup of $16$ and around
-$50$ queries. In general, the number of queries needed to reach a target
-of $\lambda$ bits is obtained by inverting
+bits per query: at $\rho = 1/4$ each query is worth $1$ bit, and at
+$\rho = 1/8$ it is worth $1.5$ bits. A larger blowup makes each query
+more powerful, but it enlarges the committed codeword, so in practice a
+small blowup of $2$ or $4$ is usually preferred, reaching the target with
+more queries rather than a very low rate. The number of queries needed to
+reach a target of $\lambda$ bits is obtained by inverting
 \cref{eq:bits_per_query}:
 %
 \begin{equation}
@@ -242,29 +255,26 @@ s \;=\; \frac{\lambda}{\tfrac{1}{2}\log_2(1/\rho)} .
 \end{equation}
 %
 For $\lambda = 100$ this gives $100/0.5 = 200$ queries at $\rho = 1/2$,
-$100/1.5 \approx 67$ at $\rho = 1/8$, and $100/2 = 50$ at $\rho = 1/16$.
-The following table summarises the trade-off.
+$100/1 = 100$ at $\rho = 1/4$, and $100/1.5 \approx 67$ at $\rho = 1/8$.
 
 \begin{center}
 \begin{tabular}{lcccc}
 \hline
  & blowup & $\rho$ & bits/query & queries for $100$ bits \\
 \hline
-This work (test) & $2$  & $1/2$  & $0.5$ & $\approx 200$ \\
-Moderate         & $8$  & $1/8$  & $1.5$ & $\approx 67$ \\
-Aggressive       & $16$ & $1/16$ & $2.0$ & $\approx 50$ \\
+$\rho = 1/2$ & $2$ & $1/2$ & $0.5$ & $\approx 200$ \\
+$\rho = 1/4$ & $4$ & $1/4$ & $1.0$ & $\approx 100$ \\
+$\rho = 1/8$ & $8$ & $1/8$ & $1.5$ & $\approx 67$ \\
 \hline
 \end{tabular}
 \end{center}
 
 The query counts in the last column assume no grinding; enabling
 grinding of $g$ bits would lower each of them by $g$ divided by the bits
-per query. The table makes the central trade-off explicit: a larger
-blowup makes each query more powerful, so fewer are needed, but it
-enlarges the committed codeword and so raises the prover's cost and the
-proof size. The test parameters sit
-at the cheap, low-security end of this spectrum, which is appropriate for
-validating correctness but would be raised for any real deployment.
+per query. The table makes the query trade-off explicit: a larger blowup 
+makes each query more powerful, so fewer are needed. The test parameters 
+sit at the cheap, low-security end of this spectrum, which is appropriate 
+for validating correctness but would be raised for any real deployment.
 
 
 % ==================================================================
@@ -313,20 +323,79 @@ $f$ checked against the commitment root and the value of $q$ taken from
 the first FRI layer. Acceptance requires the FRI proof to verify and
 \cref{eq:pcs_check} to hold at every queried position.
 
-The scheme is exercised by a small test suite in \texttt{test\_pcs.py}:
-an honest opening of $f$ at a point outside the domain is accepted, a
-claim with a wrong value is rejected, and an opening with a tampered $f$
-value is rejected.
+% ==================================================================
+\section{Evaluation}
+\label{sec:impl_evaluation}
+% ==================================================================
+
+To make the parameter trade-offs concrete, we measured the
+implementation on a polynomial of $256$ coefficients. All figures are for
+the provable regime with grinding disabled, so a target of $\lambda$ bits
+fixes the number of queries as
+$s = \lambda / \bigl(\tfrac12\log_2(1/\rho)\bigr)$.
+
+\Cref{tab:proofsize} reports the proof size for three rates and three
+security targets. For a fixed rate the proof grows linearly with the
+target, since it grows linearly with the number of queries; for a fixed
+target it shrinks as the rate decreases, because a smaller rate makes
+each query carry more bits and fewer are needed.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lccc}
+\hline
+ & $\lambda = 80$ & $\lambda = 100$ & $\lambda = 128$ \\
+\hline
+$\rho = 1/2$ (blowup $2$) & $480$ KB & $600$ KB & $768$ KB \\
+$\rho = 1/4$ (blowup $4$) & $293$ KB & $366$ KB & $468$ KB \\
+$\rho = 1/8$ (blowup $8$) & $237$ KB & $293$ KB & $377$ KB \\
+\hline
+\end{tabular}
+\caption{Proof size for a $256$-coefficient polynomial, at three rates
+and three security targets.}
+\label{tab:proofsize}
+\end{table}
+
+\Cref{tab:tradeoff} isolates the trade-off at a fixed target of $100$
+bits. Lowering the rate reduces the proof size, but raises the prover
+time, because the committed codeword is larger and both the low-degree
+extension and the Merkle tree grow with it. This is why a small blowup is
+often preferred in practice: it keeps the prover cheap, at the cost of
+more queries and a larger proof.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lcccc}
+\hline
+ & blowup & queries & prover time & proof size \\
+\hline
+$\rho = 1/2$ & $2$ & $200$ & $43$ ms & $600$ KB \\
+$\rho = 1/4$ & $4$ & $100$ & $51$ ms & $366$ KB \\
+$\rho = 1/8$ & $8$ & $67$  & $86$ ms & $293$ KB \\
+\hline
+\end{tabular}
+\caption{Proof size against prover time at a fixed security level of
+$100$ bits, for a $256$-coefficient polynomial. Times are wall-clock
+medians of the Python implementation and are indicative of the relative
+trend rather than of absolute performance.}
+\label{tab:tradeoff}
+\end{table}
+
+\FloatBarrier
 
 % ==================================================================
 \section{Testing}
 \label{sec:impl_testing}
 % ==================================================================
 
-Correctness is checked by a small test suite. An honest prover is run
-end to end and its proof is accepted. Two dishonest provers are then
-constructed, one that corrupts a committed value and one that corrupts
-the final layer, and in both cases verification rejects, confirming that
-the colinearity checks catch inconsistencies. The Number Theoretic
-Transform is checked independently against direct evaluation of the same
-polynomial, ensuring the coefficient-to-evaluation conversion is correct.
+Correctness is checked by two small test suites. The FRI suite in
+\texttt{test\_fri.py} runs an honest prover end to end and accepts its
+proof, then constructs two dishonest provers, one corrupting a committed
+value and one corrupting the final layer, and confirms that verification
+rejects both, so the colinearity checks catch the inconsistencies. It
+also checks the Number Theoretic Transform against direct evaluation of
+the same polynomial, verifying the coefficient-to-evaluation conversion.
+The commitment-scheme suite in \texttt{test\_pcs.py} covers the
+evaluation proof: an honest opening at a point outside the domain is
+accepted, while a claim with a wrong value and an opening with a tampered
+$f$ value are both rejected.

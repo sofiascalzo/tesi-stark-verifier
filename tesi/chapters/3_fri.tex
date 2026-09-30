@@ -1,0 +1,523 @@
+\chapter{The FRI Protocol}
+\label{ch:fri}
+ 
+This chapter presents the Fast Reed-Solomon Interactive Oracle Proof of
+Proximity, the protocol at the core of the system implemented in
+this thesis. We begin by stating the problem FRI solves, then describe
+the algebraic structure of the evaluation domain, and finally the
+folding operation that drives the protocol.
+
+\section{Overview and Problem Statement}
+\label{sec:fri_overview}
+
+ 
+Recall from \cref{def:rs_code} that, for a subset $S \subseteq \F$ and
+a rate parameter $\rho \in (0,1)$, the Reed-Solomon code
+$\RS[\F, S, \rho]$ consists of the evaluations on $S$ of polynomials of
+degree less than $\rho|S|$. The problem FRI addresses is the following.
+ 
+\begin{definition}[Rate Proximity Testing (RPT) {\cite[Section~2.1]{BBHR18}}]
+\label{def:rpt}
+A verifier is given oracle access to a function $f : S \to \F$, together
+with auxiliary information supplied by a proer. The verifier must
+distinguish, with high probability and using only a small number of
+queries, between the case that $f \in \RS[\F, S, \rho]$ and the case
+that $f$ is far from every member of $\RS[\F, S, \rho]$ in relative
+Hamming distance (\cref{def:hamming}).
+\end{definition}
+ 
+RPT is a special case of the low-degree testing problem, and
+Ben-Sasson et al.\ identify it as a major bottleneck for transparent
+proof systems~\cite[Section~2.1]{BBHR18}.
+ 
+A naive solution is instructive. The verifier could ask the prover to
+open $f$ at $\rho|S|$ positions, interpolate the unique polynomial of
+degree less than $\rho|S|$ through them, and check that it agrees with
+$f$ elsewhere. This fails on two counts: the number of openings is
+proportional to the degree bound, which can reach $2^{20}$ or more in
+practical instances, and every opening carries a Merkle authentication
+path of $\log|S|$ hash values (\cref{sec:merkle_trees}), so the proof
+size becomes prohibitive.
+ 
+FRI takes a different route. Instead of testing the degree directly,
+it \emph{reduces} it: the prover repeatedly halves the degree of the
+committed polynomial using randomness supplied by the verifier, until
+the degree is small enough to send the remaining polynomial directly.
+Each reduction step is committed, and the verifier spot-checks the
+consistency of the steps at a small number of random positions. If the
+original function is far from the code, then with high probability at
+least one reduction is inconsistent, and the verifier detects it.
+ 
+This yields a protocol with prover arithmetic complexity strictly
+linear in $|S|$ and verifier arithmetic complexity strictly
+logarithmic~\cite[Section~2.1]{BBHR18}. In the terminology of
+\cref{sec:iop}, FRI is an interactive oracle proof of proximity (IOPP)
+for Reed-Solomon codes: the prover's messages are committed
+codewords which the verifier queries at a bounded number of positions,
+rather than reading in full.
+ 
+\begin{remark}
+\label{rem:proximity_not_membership}
+FRI establishes \emph{proximity}, not membership. A successful
+verification does not certify that the committed vector is exactly a
+Reed-Solomon codeword, only that it is close to one in relative
+Hamming distance. This distinction is central to the soundness
+analysis of the FRI protocol.
+\end{remark}  % citare soundess proof
+ 
+
+ 
+% ==================================================================
+\section{The Evaluation Domain}
+\label{sec:fri_domain}
+% ==================================================================
+ 
+The folding step of FRI relies on specific algebraic structure in the
+evaluation domain. We state the requirements first, then give the
+co(\cref{sec:fri_folding})nstruction used in our implementation.
+ 
+ 
+\subsection{Requirements}
+\label{subsec:domain_requirements}
+ 
+The reduction from a polynomial $f$ to a polynomial of half the degree
+is carried out by pairing the evaluations of $f$ at $x$ and at $-x$. %(\cref{sec:fri_folding})
+For this to be possible at every position,
+the domain must be closed under negation. Moreover, the folded
+polynomial is committed not on $D$ but on the squared domain
+$D^{(2)} := \{x^2 : x \in D\}$, and since the folding step is applied
+iteratively, $D^{(2)}$ must be closed under negation as well, and so
+on for every subsequent layer~\cite[Section~3.9.1]{ethSTARK}.
+ 
+We therefore require a chain of domains
+%
+\[
+D = D_0, \quad D_{i+1} = D_i^{(2)}, \quad i = 0, 1, \ldots
+\]
+%
+such that every $D_i$ is closed under negation and
+$|D_{i+1}| = |D_i|/2$. These requirements are met by taking $D$ to be
+a coset of a multiplicative subgroup of order
+$2^k$~\cite[Section~3.9.1]{ethSTARK}.
+ 
+A coset is used rather than the subgroup itself so that the evaluation
+domain is disjoint from the trace domain on which the polynomial being
+committed is defined~\cite[Section~3.4]{ethSTARK}. Disjointness is
+required in the full STARK protocol, where constraint polynomials are
+expressed as rational functions whose denominators vanish on the trace
+domain; evaluating them on a disjoint domain keeps those denominators
+nonzero.
+ 
+ 
+\subsection{Construction}
+\label{subsec:domain_construction}
+
+We build the domain from the roots of unity of \cref{subsec:roots_of_unity}.
+Let $n$ be the number of coefficients of the polynomial to be committed,
+$b$ the blowup factor, and $N = b \cdot n = 2^k$ the size of the
+evaluation domain. Two elements are fixed:
+%
+\begin{equation}
+\label{eq:domain_generators}
+\omega = \gamma^{(p-1)/2^{k}}, \qquad
+g = \gamma^{(p-1)/2^{k+1}},
+\end{equation}
+%
+where $\gamma$ is a fixed multiplicative generator of $\Fp^*$. Here
+$\omega$ is a primitive $2^k$-th root of unity: its powers
+$\langle\omega\rangle = \{1, \omega, \ldots, \omega^{N-1}\}$ form a
+cyclic group of $N$ equally spaced points. The element $g$ is a
+primitive $2^{k+1}$-th root of unity, one ``half-step'' finer, and it
+plays the role of an \emph{offset} that rotates the whole group. The
+two are linked by the invariant
+%
+\begin{equation}
+\label{eq:g_squared}
+g^2 = \omega,
+\end{equation}
+%
+which, as we show below, is exactly what makes the domain reproduce
+itself under squaring.
+
+The evaluation domain is the coset (\cref{def:coset})
+%
+\begin{equation}
+\label{eq:domain}
+D = g \cdot \langle \omega \rangle
+  = \{\, g\omega^j : j = 0, \ldots, N-1 \,\},
+\end{equation}
+%
+i.e.\ the group $\langle\omega\rangle$ shifted by the offset $g$. The
+codeword committed by the prover is $\bigl(f(g\omega^j)\bigr)_{j=0}^{N-1}$,
+computed by scaling the $i$-th coefficient of $f$ by $g^i$ and applying
+the NTT (\cref{subsec:ntt,subsec:lde}). In our implementation $\omega$
+and $g$ are returned by \texttt{two\_adic\_generator(k)} and
+\texttt{two\_adic\_generator(k+1)} respectively, and the scaled NTT is
+performed by \texttt{coset\_lde}.
+
+Three properties follow, and together they justify the folding step.
+ 
+\begin{proposition}
+\label{prop:domain}
+With $D$ as in \cref{eq:domain} and $N = 2^k$, $k \geq 1$:
+\begin{enumerate}
+  \item $\omega^{N/2} = -1$;
+  \item $D$ is closed under negation: $-\,g\omega^{j} = g\omega^{j+N/2}$
+    for $j < N/2$;
+  \item $D^{(2)} = \omega \cdot \langle\omega^2\rangle$, a coset of the
+    subgroup of order $N/2$; in particular $|D^{(2)}| = N/2$.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+\emph{(1)} The element $\omega^{N/2}$ squares to
+$\omega^N = 1$, so it is a square root of unity. It cannot equal $1$,
+since $\omega$ has order exactly $N$; as $\Fp$ is a field, the only
+square roots of unity are $\pm 1$, hence $\omega^{N/2} = -1$.
+
+\emph{(2)} Using (1),
+$g\omega^{j+N/2} = g\omega^{j}\cdot\omega^{N/2} = -\,g\omega^{j}$, and
+the index $j+N/2$ lies in $\{0,\dots,N-1\}$, so the negated element is
+again in $D$.
+
+\emph{(3)} Squaring an element of $D$ and applying \cref{eq:g_squared}
+gives $(g\omega^{j})^2 = g^2\omega^{2j} = \omega^{2j+1}$, so
+$D^{(2)} = \{\omega^{2j+1} : j = 0,\dots,N-1\}$, the subgroup
+$\langle\omega^2\rangle$ shifted by $\omega$. By (2) the map
+$x \mapsto x^2$ identifies $x$ with $-x$, so it is two-to-one on $D$
+and $|D^{(2)}| = N/2$.
+\end{proof}
+
+Property~(3) is what makes the construction \emph{self-reproducing}:
+the squared domain is again a coset of a two-power subgroup, of the
+same shape as $D$ but half the size, now described by the pair
+$(\omega, \omega^2)$ in place of $(g, \omega)$. A single FRI round
+therefore updates the domain simply by squaring both parameters,
+%
+\begin{equation}
+\label{eq:domain_update}
+g \leftarrow g^2, \qquad \omega \leftarrow \omega^2,
+\end{equation}
+%
+which in our implementation is the update
+\texttt{offset = offset*offset}, \texttt{omega = omega*omega} applied
+at the end of each layer. The requirements of
+\cref{subsec:domain_requirements} are preserved at every level, as long
+as the subgroup order remains even.
+
+\begin{example}
+\label{ex:domain_f17}
+Take $\F_{17}$, whose multiplicative group has order $16 = 2^4$, with
+generator $\gamma = 3$. For $N = 8$ we get $\omega = 3^2 = 9$ and
+$g = 3^1 = 3$, so $g^2 = 9 = \omega$ as required by
+\cref{eq:g_squared}. The evaluation domain is
+%
+\[
+D = \{3, 10, 5, 11, 14, 7, 12, 6\}.
+\]
+%
+Its elements pair up as $(3,14)$, $(10,7)$, $(5,12)$, $(11,6)$, each
+pair summing to $0 \bmod 17$ --- this is $-\,g\omega^{j} = g\omega^{j+4}$
+in action. Squaring gives $D^{(2)} = \{9, 15, 8, 2\}$, of size $4$,
+which is exactly the coset
+$\omega\cdot\langle\omega^2\rangle = 9\cdot\langle 13\rangle$ built from
+the updated parameters.
+\end{example}
+
+
+Folding is the algebraic core of FRI: it maps a polynomial of degree
+less than $d$, evaluated on $D$, to a polynomial of degree less than
+$d/2$, evaluateend{example}
+
+
+Folding is the algebraic core of FRI: it maps a polynomial of degree
+less than $d$, evaluated on $D$, to a polynomial of degree less than
+$d/2$, evaluated on $D^{(2)}$, using a single random challenge.
+ 
+ 
+\subsection{Even-Odd Decomposition}
+\label{subsec:even_odd}
+ 
+\begin{definition}[Even-Odd Decomposition]
+\label{def:even_odd}
+Let $f(X) = \sum_{i=0}^{d-1} c_i X^i \in \Fp[X]$. Define
+%
+\[
+f_{e}(Y) = \sum_{i \text{ even}} c_i \, Y^{i/2},
+\qquad
+f_{o}(Y) = \sum_{i \text{ odd}} c_i \, Y^{(i-1)/2}.
+\]
+%
+Then $f$ decomposes uniquely as
+%
+\begin{equation}
+\label{eq:even_odd}
+f(X) = f_{e}(X^2) + X \cdot f_{o}(X^2),
+\end{equation}
+%
+and both $f_e$ and $f_o$ have degree less than $\lceil d/2 \rceil$.
+\end{definition}
+ 
+The decomposition simply separates the coefficients of $f$ by the
+parity of their index; the degree bound follows because each of the two
+polynomials retains at most half of the $d$ coefficients. This is the
+same identity that underlies the recursive step of the NTT
+(\cref{subsec:ntt}), and it is the split used by FRI in the commit
+phase~\cite[Section~3.9.1]{ethSTARK}.
+ 
+ 
+\subsection{Recovering the Components from a Pair}
+\label{subsec:recovering}
+ 
+The prover holds $f$ in evaluation form, not in coefficient form, so
+the decomposition must be computable from evaluations alone. Evaluating
+\cref{eq:even_odd} at $x$ and at $-x$ gives the linear
+system~\cite[Section~3.9.2]{ethSTARK}
+%
+\begin{equation}
+\label{eq:fold_system}
+\begin{aligned}
+f(x)  &= f_{e}(x^2) + x \cdot f_{o}(x^2), \\
+f(-x) &= f_{e}(x^2) - x \cdot f_{o}(x^2),
+\end{aligned}
+\end{equation}
+%
+in the two unknowns $f_{e}(x^2)$ and $f_{o}(x^2)$. Since $x \neq 0$ for
+every $x \in D$, the system is nonsingular and solves to
+%
+\begin{equation}
+\label{eq:fold_solve}
+f_{e}(x^2) = \frac{f(x) + f(-x)}{2},
+\qquad
+f_{o}(x^2) = \frac{f(x) - f(-x)}{2x}.
+\end{equation}
+%
+Both components at the point $x^2 \in D^{(2)}$ are thus determined by
+the single pair $\bigl(f(x), f(-x)\bigr)$, which by
+\cref{prop:domain}(2) is the pair of codeword entries at indices $i$
+and $i + N/2$.
+ 
+ 
+\subsection{The Fold}
+\label{subsec:the_fold}
+ 
+\begin{definition}[FRI Fold]
+\label{def:fold}
+Let $f$ have degree less than $d$ and let $\alpha$ be a challenge
+sampled from a field $\mathbb{K} \supseteq \Fp$. The \emph{fold} of $f$
+with respect to $\alpha$ is
+%
+\begin{equation}
+\label{eq:fold}
+f^{(\alpha)}(Y) := f_{e}(Y) + \alpha \cdot f_{o}(Y) ,
+\end{equation}
+%
+a polynomial over $\mathbb{K}$ of degree less than $\lceil d/2 \rceil$.
+\end{definition}
+ 
+Combining \cref{eq:fold} with \cref{eq:fold_solve}, the codeword of
+$f^{(\alpha)}$ on $D^{(2)}$ is computed from the codeword of $f$ on $D$
+without any interpolation:
+%
+\begin{equation}
+\label{eq:fold_evaluations}
+f^{(\alpha)}(x^2)
+  = \frac{f(x) + f(-x)}{2}
+  + \alpha \cdot \frac{f(x) - f(-x)}{2x} .
+\end{equation}
+%
+This is precisely the operation performed by our implementation: for
+each $i < N/2$ it reads the entries at indices $i$ and $i + N/2$,
+applies \cref{eq:fold_evaluations} with $x = g\omega^{i}$, and emits a
+codeword of length $N/2$ over the domain $D^{(2)}$ described by the
+updated parameters of \cref{eq:domain_update}.
+ 
+A single round therefore halves two quantities at once: the degree
+bound, by \cref{def:fold}, and the domain size, by
+\cref{prop:domain}(3). The rate $\rho$ is invariant, and the folded
+codeword is again a Reed-Solomon codeword of the same rate.
+ 
+% alpha is sampled from F_{p^4} by the challenger; from round 0 onwards
+% the codeword entries are extension field elements.
+\begin{remark}[Arithmetic in the extension field]
+\label{rem:ext_field_fold}
+The initial codeword lies in $\Fp$, but the challenge $\alpha$ is
+sampled from the quartic extension $\Fpk$
+(\cref{subsec:field_ext}). By \cref{eq:fold}, the folded polynomial has
+coefficients in $\Fpk$, and every subsequent layer is an
+$\Fpk$-codeword. In our implementation this transition happens at the
+first fold: the entries of the initial codeword are base field
+elements, while all later layers hold extension field elements, and the
+Merkle leaves grow accordingly from four to sixteen bytes.
+\end{remark}
+ 
+\begin{example}
+\label{ex:fold_f17}
+Continuing \cref{ex:domain_f17}, let
+$f(X) = 1 + 2X + 3X^2 + 4X^3$ over $\F_{17}$, so $d = 4$, $N = 8$ and
+$\rho = 1/2$. The codeword of $f$ on $D = \{3, 10, 5, 11, 14, 7, 12,
+6\}$ is
+%
+\[
+\bigl(f(x)\bigr)_{x \in D} = (6, 3, 8, 15, 16, 4, 8, 16).
+\]
+%
+The decomposition of \cref{def:even_odd} gives $f_e(Y) = 1 + 3Y$ and
+$f_o(Y) = 2 + 4Y$. With the challenge $\alpha = 5$,
+%
+\[
+f^{(5)}(Y) = (1 + 3Y) + 5\,(2 + 4Y) = 11 + 6Y ,
+\]
+%
+of degree $1 < 2$, as predicted by \cref{def:fold}. Applying
+\cref{eq:fold_evaluations} to the four pairs
+$\bigl(f(x), f(-x)\bigr)$ produces the codeword
+$(14, 16, 8, 6)$ on $D^{(2)} = \{9, 15, 8, 2\}$, which is exactly the
+evaluation of $11 + 6Y$ on that domain. Both the degree bound and the
+domain size have halved, while the rate remains $2/4 = 1/2$.
+\end{example}
+ d on $D^{(2)}$, using a single random challenge.
+ 
+ 
+\subsection{Even-Odd Decomposition}
+\label{subsec:even_odd}
+ 
+\begin{definition}[Even-Odd Decomposition]
+\label{def:even_odd}
+Let $f(X) = \sum_{i=0}^{d-1} c_i X^i \in \Fp[X]$. Define
+%
+\[
+f_{e}(Y) = \sum_{i \text{ even}} c_i \, Y^{i/2},
+\qquad
+f_{o}(Y) = \sum_{i \text{ odd}} c_i \, Y^{(i-1)/2}.
+\]
+%
+Then $f$ decomposes uniquely as
+%
+\begin{equation}
+\label{eq:even_odd}
+f(X) = f_{e}(X^2) + X \cdot f_{o}(X^2),
+\end{equation}
+%
+and both $f_e$ and $f_o$ have degree less than $\lceil d/2 \rceil$.
+\end{definition}
+ 
+The decomposition simply separates the coefficients of $f$ by the
+parity of their index; the degree bound follows because each of the two
+polynomials retains at most half of the $d$ coefficients. This is the
+same identity that underlies the recursive step of the NTT
+(\cref{subsec:ntt}), and it is the split used by FRI in the commit
+phase~\cite[Section~3.9.1]{ethSTARK}.
+ 
+ 
+\subsection{Recovering the Components from a Pair}
+\label{subsec:recovering}
+ 
+The prover holds $f$ in evaluation form, not in coefficient form, so
+the decomposition must be computable from evaluations alone. Evaluating
+\cref{eq:even_odd} at $x$ and at $-x$ gives the linear
+system~\cite[Section~3.9.2]{ethSTARK}
+%
+\begin{equation}
+\label{eq:fold_system}
+\begin{aligned}
+f(x)  &= f_{e}(x^2) + x \cdot f_{o}(x^2), \\
+f(-x) &= f_{e}(x^2) - x \cdot f_{o}(x^2),
+\end{aligned}
+\end{equation}
+%
+in the two unknowns $f_{e}(x^2)$ and $f_{o}(x^2)$. Since $x \neq 0$ for
+every $x \in D$, the system is nonsingular and solves to
+%
+\begin{equation}
+\label{eq:fold_solve}
+f_{e}(x^2) = \frac{f(x) + f(-x)}{2},
+\qquad
+f_{o}(x^2) = \frac{f(x) - f(-x)}{2x}.
+\end{equation}
+%
+Both components at the point $x^2 \in D^{(2)}$ are thus determined by
+the single pair $\bigl(f(x), f(-x)\bigr)$, which by
+\cref{prop:domain}(2) is the pair of codeword entries at indices $i$
+and $i + N/2$.
+ 
+ 
+\subsection{The Fold}
+\label{subsec:the_fold}
+ 
+\begin{definition}[FRI Fold]
+\label{def:fold}
+Let $f$ have degree less than $d$ and let $\alpha$ be a challenge
+sampled from a field $\mathbb{K} \supseteq \Fp$. The \emph{fold} of $f$
+with respect to $\alpha$ is
+%
+\begin{equation}
+\label{eq:fold}
+f^{(\alpha)}(Y) := f_{e}(Y) + \alpha \cdot f_{o}(Y) ,
+\end{equation}
+%
+a polynomial over $\mathbb{K}$ of degree less than $\lceil d/2 \rceil$.
+\end{definition}
+ 
+Combining \cref{eq:fold} with \cref{eq:fold_solve}, the codeword of
+$f^{(\alpha)}$ on $D^{(2)}$ is computed from the codeword of $f$ on $D$
+without any interpolation:
+%
+\begin{equation}
+\label{eq:fold_evaluations}
+f^{(\alpha)}(x^2)
+  = \frac{f(x) + f(-x)}{2}
+  + \alpha \cdot \frac{f(x) - f(-x)}{2x} .
+\end{equation}
+%
+This is precisely the operation performed by our implementation: for
+each $i < N/2$ it reads the entries at indices $i$ and $i + N/2$,
+applies \cref{eq:fold_evaluations} with $x = g\omega^{i}$, and emits a
+codeword of length $N/2$ over the domain $D^{(2)}$ described by the
+updated parameters of \cref{eq:domain_update}.
+ 
+A single round therefore halves two quantities at once: the degree
+bound, by \cref{def:fold}, and the domain size, by
+\cref{prop:domain}(3). The rate $\rho$ is invariant, and the folded
+codeword is again a Reed-Solomon codeword of the same rate.
+ 
+% alpha is sampled from F_{p^4} by the challenger; from round 0 onwards
+% the codeword entries are extension field elements.
+\begin{remark}[Arithmetic in the extension field]
+\label{rem:ext_field_fold}
+The initial codeword lies in $\Fp$, but the challenge $\alpha$ is
+sampled from the quartic extension $\Fpk$
+(\cref{subsec:field_ext}). By \cref{eq:fold}, the folded polynomial has
+coefficients in $\Fpk$, and every subsequent layer is an
+$\Fpk$-codeword. In our implementation this transition happens at the
+first fold: the entries of the initial codeword are base field
+elements, while all later layers hold extension field elements, and the
+Merkle leaves grow accordingly from four to sixteen bytes.
+\end{remark}
+ 
+\begin{example}
+\label{ex:fold_f17}
+Continuing \cref{ex:domain_f17}, let
+$f(X) = 1 + 2X + 3X^2 + 4X^3$ over $\F_{17}$, so $d = 4$, $N = 8$ and
+$\rho = 1/2$. The codeword of $f$ on $D = \{3, 10, 5, 11, 14, 7, 12,
+6\}$ is
+%
+\[
+\bigl(f(x)\bigr)_{x \in D} = (6, 3, 8, 15, 16, 4, 8, 16).
+\]
+%
+The decomposition of \cref{def:even_odd} gives $f_e(Y) = 1 + 3Y$ and
+$f_o(Y) = 2 + 4Y$. With the challenge $\alpha = 5$,
+%
+\[
+f^{(5)}(Y) = (1 + 3Y) + 5\,(2 + 4Y) = 11 + 6Y ,
+\]
+%
+of degree $1 < 2$, as predicted by \cref{def:fold}. Applying
+\cref{eq:fold_evaluations} to the four pairs
+$\bigl(f(x), f(-x)\bigr)$ produces the codeword
+$(14, 16, 8, 6)$ on $D^{(2)} = \{9, 15, 8, 2\}$, which is exactly the
+evaluation of $11 + 6Y$ on that domain. Both the degree bound and the
+domain size have halved, while the rate remains $2/4 = 1/2$.
+\end{example}
+ 
