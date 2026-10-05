@@ -13,6 +13,8 @@ cryptographic libraries: the field arithmetic, the hash function, the
 Merkle commitments, and the Fiat-Shamir challenger are all written from
 scratch.
 
+Python fits the aim of this implementation, which is clarity rather than speed.
+
 
 % ==================================================================
 \section{Architecture}
@@ -228,7 +230,8 @@ Parameter & Value & Meaning \\
 \caption{Parameters of the evaluated configuration.}
 \label{tab:params}
 \end{table}
-%
+
+
 Here \texttt{final\_poly\_len} sets the early-stopping point and
 \texttt{proof\_of\_work\_bits} the grinding difficulty of
 \cref{sec:impl_optimisations}. The rate is $\rho = 1/2$, so by
