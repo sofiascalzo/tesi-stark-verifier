@@ -558,7 +558,7 @@ round-by-round analysis of Garreta, Mohnblatt, and Wagner~\cite{GMW25},
 which gives the simplest known soundness proof for FRI in the form
 implemented here.
 
-One point frames everything that follows. FRI certifies \emph{proximity},
+The key observation is the following. FRI certifies \emph{proximity},
 not equality (\cref{rem:proximity_not_membership}): the verifier never
 learns that the committed vector is exactly a codeword, only that it is
 close to one. Soundness must therefore be stated in terms of distance. We
@@ -719,7 +719,8 @@ line of research: recent work extends mutual correlated agreement beyond
 the Johnson radius for Reed-Solomon codes, narrowing the gap between what
 is provable and what was previously only conjectured, and the question is
 the subject of a dedicated open-problem effort~\cite{proximityprize}.
-Reaching capacity would allow fewer queries for the same security.In
-this thesis we rely only on the established Johnson-radius guarantee, and 
-leave the capacity regime out of scope.
+Approaching capacity would allow fewer queries for the same security, though 
+it is known that the list-decoding capacity itself cannot be achieved. In this 
+thesis we rely only on the established Johnson-radius guarantee, and leave 
+the capacity regime out of scope
 

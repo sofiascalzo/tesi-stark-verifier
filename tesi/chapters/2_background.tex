@@ -383,12 +383,11 @@ challenger.
 % CO25 proves DSFS (Duplex Sponge Fiat-Shamir) preserves soundness,
 % knowledge-soundness and zero-knowledge.
 The distinction matters for the Fiat-Shamir transformation. Chiesa and
-Orr\`{u}~\cite{CO25} prove that a \emph{duplex sponge} construction
-(such as Keccak/SHA-3) is suitable for Fiat-Shamir, while
-Merkle-Damg\r{a}rd constructions (such as SHA-256) lack a comparable
-security proof in this setting. For this reason we use a Keccak-based
-sponge for the challenger, while retaining SHA-256 for the Merkle
-trees, where only collision resistance is required.
+Orr\`{u}~\cite{CO25} prove that a duplex sponge construction (such as Keccak/SHA-3)
+efficiently supports the Fiat–Shamir transformation ~\cite{CO25}, whereas 
+Merkle-Damgård constructions (such as SHA-256) require additional overhead.
+For this reason we use a Keccak-based sponge for the challenger, while 
+retaining SHA-256 for the Merkle trees, where only collision resistance is required.
 
 
 % ==================================================================
@@ -461,8 +460,9 @@ the prover's messages, and the verifier's decision is a deterministic
 function of the \emph{transcript}, the ordered sequence of messages
 and challenges. These are exactly the protocols to which the
 Fiat-Shamir transformation (\cref{subsec:fiat_shamir}) applies. An
-\emph{argument of knowledge} further requires an efficient extractor
-$\Extractor$ that recovers a valid witness from any convincing prover.
+\emph{argument of knowledge} further requires an efficient extractor 
+E that recovers a valid witness from any convincing prover, ensuring
+that the verifier is convinced that the prover indeed knows the witness.
 
 STARKs are \emph{arguments}, not \emph{proofs} in the formal sense:
 their soundness relies on the collision resistance of a hash function,
@@ -479,10 +479,11 @@ interaction from a public-coin protocol by replacing the verifier's
 random challenges with the output of a hash function applied to the
 transcript so far. Under the random oracle model, this preserves
 soundness. Chiesa and Orr\`{u}~\cite{CO25} give a formal treatment
-using a duplex sponge, which resolves the ambiguity between writing to
-and reading from the transcript by using the sponge's native
+using a duplex sponge, which efficiently handles the transcript using the sponge’s native 
 \emph{absorb} and \emph{squeeze} operations. Our challenger implements
 this construction over Keccak-$f$[1600].
+
+which efficiently handles the transcript using the sponge’s native absorb and squeeze operations
 
 
 % ==================================================================
@@ -505,7 +506,10 @@ algorithms:
   \item $\Verify(\mathsf{pp}, C, z, v, \pi) \to \{0,1\}$: checks
     the evaluation proof.
 \end{itemize}
-The scheme must satisfy correctness and binding.
+The scheme must satisfy correctness and binding: correctness ensures
+that an honestly generated proof for a true evaluation always verifies, 
+while binding guarantees that no efficient prover can open a commitment
+to two different values at the same point.
 \end{definition}
 
  

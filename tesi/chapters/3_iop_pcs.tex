@@ -44,7 +44,7 @@ have been defined.
 To reveal the value at a position without sending the whole sequence,
 the prover uses an authentication path. To open position $i$, it reveals
 $v_i$ and the \emph{authentication path}: the sibling hashes along the
-route from the leaf $\ell_i$ to the root, one per level, so $\log_2 N$
+route from the leaf $\ell_i$ to the root, one per level, so $O(\log N)$ 
 hashes in total.
  
 With these siblings the verifier can recompute the root on its own, even
@@ -58,7 +58,7 @@ sibling; the sibling is the one input the verifier does not already hold.
 The verifier accepts if the recomputed root equals the committed root.
 The cost is $O(\log N)$ hash evaluations.
  
-\Cref{alg:rootfrompath} makes this recomputation explicit. The order in
+We formalise this recomputation in \Cref{alg:rootfrompath}. The order in
 which each sibling is combined, whether the current node goes on the left
 or on the right, is dictated by the bits of the position $i$: at level
 $\ell$, the $\ell$-th bit of $i$ (counting from the leaf) is $0$ when the
@@ -147,9 +147,10 @@ queried position after committing.
 \label{sec:iop}
 % ==================================================================
 
-
-An interactive oracle proof generalises the interactive proofs of
-\cref{subsec:interactive_proofs}. As there, prover and verifier exchange
+An interactive oracle proof is an interactive proof, as defined in 
+\cref{subsec:interactive_proofs}, in which the verifier has oracle 
+access to the prover’s messages rather than reading them in full.
+As there, prover and verifier exchange
 messages over several rounds; the new element is that the verifier does
 not read the prover's messages in full, but is given \emph{oracle access}
 to them, querying only a few chosen positions.
@@ -184,12 +185,10 @@ Merkle commitments is deferred to the BCS transformation.
 The key difference from a standard interactive proof is that the
 verifier has \emph{oracle access} to the prover's messages: rather than
 receiving each message in full, it may query a small number of chosen
-positions of $\pi_i$. The oracle is an abstraction: it fixes the
-message in advance, so that every query is answered consistently, but
-says nothing about how this is realised. Making the oracles concrete is
-the job of the BCS transformation of \cref{sec:bcs}, after which we can
-reason about FRI purely in terms of oracles and queries, without
-committing to any particular implementation of them.
+positions of $\pi_i$. The oracle fixes the message in advance, ensuring 
+consistent answers to every query, but leaves the realisation unspecified. 
+The BCS transformation of \cref{sec:bcs} instantiates these oracles concretely; 
+until then, we reason about FRI in terms of oracles and queries alone.
 
 An IOP of \emph{proximity} (IOPP) is an IOP in which the verifier tests
 whether the prover's initial oracle is close to a codeword of a
@@ -226,9 +225,9 @@ realising each abstract ingredient with a concrete one.
     with its authentication path, and the verifier checks the path
     against the committed root. An opening that verifies is a consistent
     answer to an oracle query.
-  \item \textbf{Challenges become random-oracle outputs.} Each verifier
-    challenge is set to the output of the random oracle on the transcript
-    so far (\cref{subsec:fiat_shamir}), so no live interaction is needed
+  \item \textbf{Challenges become random-oracle outputs.} Using the Fiat–Shamir 
+    transformation (\cref{subsec:fiat_shamir}), each verifier challenge is set to 
+    the output of the random oracle on the transcript so far, so no live interaction is needed
     and the whole exchange becomes a single message. The challenge of a
     round is fixed only after the commitment of that round is in the
     transcript, which preserves soundness.

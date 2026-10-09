@@ -17,12 +17,12 @@ them are built. The most visible application is the scaling of
 blockchains through \emph{zk-rollups}: instead of having every node
 re-execute thousands of transactions, a single succinct proof attests
 that the whole batch was processed correctly, and the base chain only
-verifies that proof. StarkNet, a Layer-2 network on Ethereum, does
-exactly this using STARK proofs, which are built on top of the FRI
-protocol studied in this thesis; other systems such as zkSync and
-Polygon zkEVM follow the same idea. A second family of applications
-exploits the fact that a proof can reveal that a statement is true while
-hiding the data behind it: this enables privacy-preserving payments,
+verifies that proof. StarkNet, a Layer-2 network on Ethereum, does exactly
+this using STARK proofs, which are based on the same techniques underlying
+the FRI protocol studied in this thesis; other systems such as Polygon 
+zkEVM follow a similar approach. A second family of applications combines 
+these proofs with additional techniques to reveal that a statement is true 
+without disclosing the underlying data: this enables privacy-preserving payments,
 identity and credential systems that prove a fact (for instance that a
 person is over a certain age) without disclosing the underlying document,
 and privacy-preserving analysis of sensitive data such as medical
@@ -44,20 +44,20 @@ purpose. What all these applications share is the same core need: a way
 to commit to data and later prove statements about it, cheaply and
 reliably.
 
-A polynomial commitment scheme lets a prover commit to a polynomial with
-a short digest and later prove its value at any chosen point, without
-revealing the polynomial itself. Different schemes make different
+A polynomial commitment scheme lets a prover commit to a polynomial with a 
+short digest and later prove its value at any chosen point, without requiring
+the verifier to know the polynomial in full. Different schemes make different
 trade-offs. Some rely on a trusted setup or on elliptic-curve
 assumptions that are broken by quantum computers. The scheme studied in
 this thesis avoids both: it is built on FRI, the Fast Reed-Solomon
-Interactive Oracle Proof of Proximity, and needs only a hash function.
+Interactive Oracle Proof of Proximity, and relies only a hash function.
 It is therefore \emph{transparent}, requiring no trusted setup, and
 plausibly \emph{post-quantum}, since its security rests on hashing alone.
 
 \section{Contribution}
 \label{sec:contribution}
 
-This thesis builds such a scheme from the ground up, over the BabyBear
+This thesis studies and explains from the ground up, over the BabyBear
 prime field $\mathbb{F}_p$ with $p = 2^{31} - 2^{27} + 1 = 15 \cdot 2^{27} + 1 = 2013265921$,
 and implements every part of it from scratch in Python
 without external cryptographic libraries. This includes the field

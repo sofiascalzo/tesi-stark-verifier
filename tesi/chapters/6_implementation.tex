@@ -77,9 +77,9 @@ The Fiat-Shamir challenges are produced by a challenger that maintains a
 transcript and derives every challenge from it, so that the verifier can
 reproduce the same challenges offline. The construction used is a
 \emph{duplex sponge}. Chiesa and Orr\`{u}~\cite{CO25} show that a duplex
-sponge is a sound basis for Fiat-Shamir, whereas a Merkle-Damg\r{a}rd
-hash such as SHA-256 lacks a comparable proof in this setting, which is
-why the challenger uses Keccak rather than SHA-256.
+sponge efficiently supports the Fiat–Shamir transformation through its 
+native absorb and squeeze operations, which is why the challenger uses 
+Keccak rather than SHA-256.
 
 The sponge keeps a state that is split into a public \emph{rate}, into
 which data is absorbed and from which output is squeezed, and a hidden
@@ -214,7 +214,17 @@ it only trades rounds against the length of the final layer and so changes
 the proof size rather than the security level.
 
 \paragraph{Parameters used in this work.}
-The configuration evaluated here is
+The configuration evaluated in this work is summarised in \cref{tab:params}.
+\texttt{final\_poly\_len} sets the early-stopping point and
+\texttt{proof\_of\_work\_bits} the grinding difficulty of
+\cref{sec:impl_optimisations}. The rate is $\rho = 1/2$, so by
+\cref{eq:bits_per_query} each query is worth $0.5$ bits and the $20$
+queries provide about $10$ bits; grinding is set to $0$, so by
+\cref{eq:security_with_grinding} it adds nothing and the security comes entirely
+from the queries. This is deliberately a \emph{test} configuration, chosen so
+that proofs are small and fast to generate while exercising every part of the
+protocol; it is not a production security level.
+
 \begin{table}[ht]
 \centering
 \begin{tabular}{lcl}
@@ -274,10 +284,9 @@ $\rho = 1/8$ & $8$ & $1/8$ & $1.5$ & $\approx 67$ \\
 
 The query counts in the last column assume no grinding; enabling
 grinding of $g$ bits would lower each of them by $g$ divided by the bits
-per query. The table makes the query trade-off explicit: a larger blowup 
-makes each query more powerful, so fewer are needed. The test parameters 
-sit at the cheap, low-security end of this spectrum, which is appropriate 
-for validating correctness but would be raised for any real deployment.
+per query. With a larger blowup each query is more effective, so fewer 
+repetitions are needed. The parameters above target correctness testing, 
+not deployment security.
 
 
 % ==================================================================
@@ -383,6 +392,13 @@ medians of the Python implementation and are indicative of the relative
 trend rather than of absolute performance.}
 \label{tab:tradeoff}
 \end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.5\textwidth]{images/blowup_size.pdf}
+\caption{Proof size as a function of the blowup factor at 100-bit security for a 256-coefficient polynomial.}
+\label{fig:blowup-size}
+\end{figure}
 
 \FloatBarrier
 
